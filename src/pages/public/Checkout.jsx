@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiShoppingBag, FiUser, FiMapPin, FiCreditCard, FiCheck } from 'react-icons/fi';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import invoiceService from '../../services/invoiceService';
 import { DELIVERY_ZONES, PAYMENT_METHODS } from '../../utils/constants';
 import { formatCurrency } from '../../utils/helpers';
 import toast from 'react-hot-toast';
@@ -21,13 +22,13 @@ const Checkout = () => {
 
   const [formData, setFormData] = useState({
     // Datos del cliente
-    fullName: user?.fullName || '',
+    fullName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
     email: user?.email || '',
-    phone: '',
+    phone: user?.phone || '',
 
     // Dirección de entrega
     deliveryZone: '',
-    address: '',
+    address: user?.address || '',
     reference: '',
 
     // Pago
@@ -70,56 +71,73 @@ const Checkout = () => {
     setLoading(true);
 
     try {
-      // Generar número de orden único
-      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      // Preparar datos del pedido según el formato del backend
+      const invoiceData = {
+        // Información del cliente - usar clientId si está logueado
+        clientId: user?.id || null, // ID del cliente autenticado
+        sellerId: 1, // Vendedor por defecto (admin o sistema)
 
-      // Preparar datos del pedido
-      const orderData = {
-        orderNumber: orderNumber,
-        orderDate: new Date().toLocaleString('es-GT', {
-          dateStyle: 'medium',
-          timeStyle: 'short'
-        }),
-        customerInfo: {
-          fullName: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-        },
-        deliveryInfo: {
-          zone: formData.deliveryZone,
-          zoneName: selectedZone?.label || '',
-          address: formData.address,
-          reference: formData.reference,
-        },
-        paymentMethod: formData.paymentMethod,
-        notes: formData.notes,
+        // Items del pedido (formato backend: productId, quantity, unitPrice)
         items: cart.map(item => ({
           productId: item.id,
-          productName: item.name,
           quantity: item.quantity,
-          price: item.price,
-          subtotal: item.price * item.quantity,
+          unitPrice: item.price, // El backend espera unitPrice, no price
         })),
-        subtotal: subtotal,
-        deliveryCost: deliveryCost,
-        total: total,
+
+        // Método de pago
+        paymentMethod: formData.paymentMethod, // 'efectivo', 'tarjeta', 'transferencia'
+
+        // Descuentos e impuestos
+        discount: 0,
+        tax: 0, // Sistema local sin IVA
+
+        // Información adicional de entrega (como notas)
+        notes: formData.notes
+          ? `${formData.notes}\n\nEntrega: ${formData.deliveryZone}\nDirección: ${formData.address || 'Recoger en tienda'}\nReferencia: ${formData.reference || 'N/A'}\nTeléfono: ${formData.phone}`
+          : `Entrega: ${formData.deliveryZone}\nDirección: ${formData.address || 'Recoger en tienda'}\nReferencia: ${formData.reference || 'N/A'}\nNombre: ${formData.fullName}\nTeléfono: ${formData.phone}\nEmail: ${formData.email || 'N/A'}`,
       };
 
-      console.log('Pedido a enviar:', orderData);
+      console.log('Pedido a enviar:', invoiceData);
 
-      // TODO: Aquí enviarás el pedido al backend
-      // const response = await orderService.createGuestOrder(orderData);
-
-      // Simular éxito por ahora
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Enviar pedido al backend
+      const response = await invoiceService.createInvoice(invoiceData);
 
       toast.success('¡Pedido realizado con éxito! Te contactaremos pronto.');
       clearCart();
-      navigate('/pedido-confirmado', { state: { orderData } });
+
+      // Redirigir a la página de confirmación con los datos del pedido
+      navigate('/pedido-confirmado', {
+        state: {
+          orderData: {
+            orderNumber: response.invoiceNumber || response.id,
+            orderDate: new Date().toLocaleString('es-GT', {
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            }),
+            customerInfo: {
+              fullName: formData.fullName,
+              email: formData.email,
+              phone: formData.phone,
+            },
+            deliveryInfo: {
+              zone: formData.deliveryZone,
+              zoneName: selectedZone?.label || '',
+              address: formData.address,
+              reference: formData.reference,
+            },
+            paymentMethod: formData.paymentMethod,
+            notes: formData.notes,
+            items: cart,
+            subtotal: subtotal,
+            deliveryCost: deliveryCost,
+            total: total,
+          }
+        }
+      });
 
     } catch (error) {
       console.error('Error al procesar el pedido:', error);
-      toast.error(error.response?.data?.message || 'Error al procesar el pedido');
+      toast.error(error.message || 'Error al procesar el pedido');
     } finally {
       setLoading(false);
     }
