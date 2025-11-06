@@ -64,9 +64,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     ],
     [USER_ROLES.CLIENTE]: [
       { path: '/dashboard', icon: FiHome, label: 'Mi Cuenta' },
-      { path: '/dashboard/pedidos', icon: FiShoppingCart, label: 'Mis Pedidos' },
+      { path: '/dashboard/compras', icon: FiShoppingCart, label: 'Hacer Compras' },
+      { path: '/dashboard/pedidos', icon: FiPackage, label: 'Mis Pedidos' },
+      { path: '/dashboard/recibos', icon: FiFileText, label: 'Mis Recibos' },
       { path: '/dashboard/perfil', icon: FiUser, label: 'Mi Perfil' },
-      { path: '/dashboard/facturas', icon: FiFileText, label: 'Mis Recibos' },
     ],
   };
 

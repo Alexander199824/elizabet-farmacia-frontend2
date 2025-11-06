@@ -8,12 +8,15 @@
 import { useState, useEffect } from 'react';
 import { FiSearch, FiPlus, FiEdit2, FiTrash2, FiEye, FiFilter, FiDownload, FiInfo } from 'react-icons/fi';
 import productService from '../../services/productService';
+import supplierService from '../../services/supplierService';
 import { formatCurrency } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 const ProductosPage = () => {
   const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     category: '',
@@ -33,12 +36,21 @@ const ProductosPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
+    genericName: '',
     category: '',
+    subcategory: '',
     presentation: '',
+    requiresPrescription: false,
     price: '',
     costPrice: '',
-    stock: '',
     minStock: '',
+    maxStock: '',
+    barcode: '',
+    laboratory: '',
+    activeIngredient: '',
+    sideEffects: '',
+    contraindications: '',
+    supplierId: '',
     description: '',
     imageUrl: '',
     isActive: true
@@ -51,6 +63,11 @@ const ProductosPage = () => {
   useEffect(() => {
     fetchProducts();
   }, [pagination.page, filters]);
+
+  // Cargar proveedores al montar el componente
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
 
   // Generar SKU automáticamente cuando cambian los campos relevantes
   useEffect(() => {
@@ -77,7 +94,7 @@ const ProductosPage = () => {
       if (filters.lowStock) params.lowStock = filters.lowStock;
 
       const response = await productService.getAllProducts(params);
-      
+
       setProducts(response.products || []);
       setPagination(prev => ({
         ...prev,
@@ -89,6 +106,23 @@ const ProductosPage = () => {
       toast.error('Error al cargar productos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      const response = await supplierService.getAllSuppliers({
+        isActive: true,
+        limit: 100
+      });
+      setSuppliers(response.suppliers || []);
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      // No mostrar error toast para no molestar al usuario
+      setSuppliers([]);
+    } finally {
+      setLoadingSuppliers(false);
     }
   };
 
@@ -115,12 +149,21 @@ const ProductosPage = () => {
     setFormData({
       name: '',
       sku: '',
+      genericName: '',
       category: '',
+      subcategory: '',
       presentation: '',
+      requiresPrescription: false,
       price: '',
       costPrice: '',
-      stock: '',
       minStock: '',
+      maxStock: '',
+      barcode: '',
+      laboratory: '',
+      activeIngredient: '',
+      sideEffects: '',
+      contraindications: '',
+      supplierId: '',
       description: '',
       imageUrl: '',
       isActive: true
@@ -136,12 +179,21 @@ const ProductosPage = () => {
     setFormData({
       name: product.name || '',
       sku: product.sku || '',
+      genericName: product.genericName || '',
       category: product.category || '',
+      subcategory: product.subcategory || '',
       presentation: product.presentation || '',
+      requiresPrescription: product.requiresPrescription || false,
       price: product.price || '',
       costPrice: product.costPrice || '',
-      stock: product.stock || '',
       minStock: product.minStock || '',
+      maxStock: product.maxStock || '',
+      barcode: product.barcode || '',
+      laboratory: product.laboratory || '',
+      activeIngredient: product.activeIngredient || '',
+      sideEffects: product.sideEffects || '',
+      contraindications: product.contraindications || '',
+      supplierId: product.supplierId || '',
       description: product.description || '',
       imageUrl: product.imageUrl || '',
       isActive: product.isActive !== undefined ? product.isActive : true
@@ -171,10 +223,10 @@ const ProductosPage = () => {
         return;
       }
 
-      // Validar tamaño (máximo 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB
+      // Validar tamaño (máximo 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB
       if (file.size > maxSize) {
-        toast.error('La imagen no debe superar los 5MB');
+        toast.error('La imagen no debe superar los 10MB');
         return;
       }
 
@@ -204,10 +256,15 @@ const ProductosPage = () => {
     // 1. Prefijo de categoría (3 letras)
     const categoryPrefixes = {
       'medicamento': 'MED',
-      'vitamina': 'VIT',
       'suplemento': 'SUP',
       'cuidado_personal': 'CPR',
-      'otro': 'OTR'
+      'equipo_medico': 'EQM',
+      'cosmetico': 'COS',
+      'higiene': 'HIG',
+      'bebe': 'BEB',
+      'vitaminas': 'VIT',
+      'primeros_auxilios': 'PAU',
+      'otros': 'OTR'
     };
     const categoryPrefix = categoryPrefixes[data.category] || 'PRD';
     sku += categoryPrefix;
@@ -267,15 +324,43 @@ const ProductosPage = () => {
         return;
       }
 
+      // Construir productData según el formato del backend
       const productData = {
-        ...formData,
+        name: formData.name,
+        sku: formData.sku,
+        category: formData.category,
         price: parseFloat(formData.price),
         costPrice: parseFloat(formData.costPrice) || 0,
-        stock: parseInt(formData.stock) || 0,
-        minStock: parseInt(formData.minStock) || 0
+        minStock: parseInt(formData.minStock) || 0,
+        maxStock: parseInt(formData.maxStock) || 0,
+        supplierId: formData.supplierId ? parseInt(formData.supplierId) : null,
+        requiresPrescription: Boolean(formData.requiresPrescription),
+        isActive: formData.isActive !== undefined ? formData.isActive : true
       };
 
-      // Si hay un archivo de imagen, agregarlo al productData
+      // Agregar campos opcionales solo si tienen valor
+      if (formData.genericName) productData.genericName = formData.genericName;
+      if (formData.subcategory) productData.subcategory = formData.subcategory;
+      if (formData.presentation) productData.presentation = formData.presentation;
+      if (formData.barcode) productData.barcode = formData.barcode;
+      if (formData.laboratory) productData.laboratory = formData.laboratory;
+      if (formData.activeIngredient) productData.activeIngredient = formData.activeIngredient;
+      if (formData.sideEffects) productData.sideEffects = formData.sideEffects;
+      if (formData.contraindications) productData.contraindications = formData.contraindications;
+      if (formData.description) productData.description = formData.description;
+      if (formData.imageUrl) productData.imageUrl = formData.imageUrl;
+
+      // Para el log, crear una copia sin la imagen (para poder ver los datos en JSON)
+      const productDataForLog = { ...productData };
+      if (imageFile) {
+        productDataForLog.image = `[File: ${imageFile.name}, ${(imageFile.size / 1024).toFixed(2)}KB]`;
+      }
+
+      console.log('📦 Datos del producto a enviar:', JSON.stringify(productDataForLog, null, 2));
+      console.log('📦 Tiene imagen?:', !!imageFile);
+      console.log('📦 Archivo de imagen:', imageFile);
+
+      // Ahora SÍ agregar la imagen al productData real
       if (imageFile) {
         productData.image = imageFile;
       }
@@ -284,15 +369,42 @@ const ProductosPage = () => {
         await productService.updateProduct(selectedProduct.id, productData);
         toast.success('Producto actualizado exitosamente');
       } else {
-        await productService.createProduct(productData);
+        const result = await productService.createProduct(productData);
+        console.log('✅ Producto creado:', result);
         toast.success('Producto creado exitosamente');
       }
 
       setShowFormModal(false);
       fetchProducts();
     } catch (error) {
-      console.error('Error saving product:', error);
-      toast.error(error.message || 'Error al guardar el producto');
+      console.error('❌ Error completo:', error);
+      console.error('❌ Error.message:', error.message);
+      console.error('❌ Error.response:', error.response);
+      console.error('❌ Error.response?.status:', error.response?.status);
+      console.error('❌ Error.response?.data (JSON):', JSON.stringify(error.response?.data, null, 2));
+      console.error('❌ Error.request:', error.request);
+
+      // Mostrar mensaje de error más detallado
+      let errorMessage = 'Error al guardar el producto';
+
+      if (error.response) {
+        // El servidor respondió con un código de error
+        const backendError = error.response?.data?.message
+          || error.response?.data?.error
+          || error.response?.data?.details
+          || `Error ${error.response.status}: ${error.response.statusText}`;
+
+        errorMessage = backendError;
+        console.error('📢 Mensaje del backend:', backendError);
+      } else if (error.request) {
+        // La petición se hizo pero no hubo respuesta
+        errorMessage = 'No se pudo conectar con el servidor. Verifica que el backend esté corriendo.';
+      } else {
+        // Algo pasó al configurar la petición
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     }
   };
 
@@ -798,10 +910,15 @@ const ProductosPage = () => {
                   >
                     <option value="">Seleccionar categoría</option>
                     <option value="medicamento">Medicamento</option>
-                    <option value="vitamina">Vitamina</option>
                     <option value="suplemento">Suplemento</option>
                     <option value="cuidado_personal">Cuidado Personal</option>
-                    <option value="otro">Otro</option>
+                    <option value="equipo_medico">Equipo Médico</option>
+                    <option value="cosmetico">Cosmético</option>
+                    <option value="higiene">Higiene</option>
+                    <option value="bebe">Bebé</option>
+                    <option value="vitaminas">Vitaminas</option>
+                    <option value="primeros_auxilios">Primeros Auxilios</option>
+                    <option value="otros">Otros</option>
                   </select>
                 </div>
 
@@ -818,6 +935,35 @@ const ProductosPage = () => {
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     placeholder="Ej: Caja x 20 tabletas"
                   />
+                </div>
+
+                {/* Proveedor (Opcional) */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Proveedor <span className="text-neutral-400 text-xs">(Opcional)</span>
+                  </label>
+                  <select
+                    name="supplierId"
+                    value={formData.supplierId}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Sin proveedor asignado</option>
+                    {loadingSuppliers ? (
+                      <option disabled>Cargando proveedores...</option>
+                    ) : suppliers.length > 0 ? (
+                      suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>No hay proveedores disponibles</option>
+                    )}
+                  </select>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Puedes asignar un proveedor ahora o dejarlo en blanco para agregarlo después
+                  </p>
                 </div>
 
                 {/* Precio de Venta */}
@@ -855,22 +1001,6 @@ const ProductosPage = () => {
                   />
                 </div>
 
-                {/* Stock Actual */}
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    Stock Actual
-                  </label>
-                  <input
-                    type="number"
-                    name="stock"
-                    value={formData.stock}
-                    onChange={handleFormChange}
-                    min="0"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="0"
-                  />
-                </div>
-
                 {/* Stock Mínimo */}
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -885,6 +1015,51 @@ const ProductosPage = () => {
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     placeholder="0"
                   />
+                </div>
+
+                {/* Stock Máximo */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Stock Máximo
+                  </label>
+                  <input
+                    type="number"
+                    name="maxStock"
+                    value={formData.maxStock}
+                    onChange={handleFormChange}
+                    min="0"
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* Subcategoría (Opcional) */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Subcategoría <span className="text-neutral-400 text-xs">(Opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="subcategory"
+                    value={formData.subcategory}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="Ej: analgésicos, antibióticos"
+                  />
+                </div>
+
+                {/* Requiere Receta */}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    name="requiresPrescription"
+                    checked={formData.requiresPrescription}
+                    onChange={handleFormChange}
+                    className="rounded text-primary-600 focus:ring-primary-500"
+                  />
+                  <label className="text-sm font-medium text-neutral-700">
+                    ¿Requiere Receta Médica?
+                  </label>
                 </div>
 
                 {/* Imagen del Producto */}

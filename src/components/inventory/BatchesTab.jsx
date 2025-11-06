@@ -36,6 +36,7 @@ const BatchesTab = ({ onRefresh }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [formData, setFormData] = useState({
     productId: '',
     supplierId: '',
@@ -129,6 +130,37 @@ const BatchesTab = ({ onRefresh }) => {
     }
   };
 
+  const handleProductSelect = async (productId) => {
+    if (!productId) {
+      setSelectedProduct(null);
+      return;
+    }
+
+    try {
+      const product = await productService.getProductById(productId);
+      setSelectedProduct(product);
+
+      // Si el producto tiene proveedor, pre-seleccionarlo
+      if (product.supplierId) {
+        setFormData(prev => ({
+          ...prev,
+          productId: product.id,
+          supplierId: product.supplierId
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          productId: product.id,
+          supplierId: ''
+        }));
+      }
+    } catch (error) {
+      console.error('Error al obtener producto:', error);
+      toast.error('Error al cargar información del producto');
+      setSelectedProduct(null);
+    }
+  };
+
   const handleOpenForm = (batch = null) => {
     if (batch) {
       setFormData({
@@ -168,16 +200,19 @@ const BatchesTab = ({ onRefresh }) => {
 
   const handleSubmitForm = async (e) => {
     e.preventDefault();
-    
+
     // Validaciones
     if (!formData.productId) {
       toast.error('Selecciona un producto');
       return;
     }
-    if (!formData.supplierId) {
-      toast.error('Selecciona un proveedor');
+
+    // Validar proveedor según el producto
+    if (selectedProduct?.supplierId && !formData.supplierId) {
+      toast.error('El producto requiere un proveedor asignado');
       return;
     }
+
     if (!formData.expirationDate) {
       toast.error('Ingresa la fecha de vencimiento');
       return;
@@ -186,21 +221,47 @@ const BatchesTab = ({ onRefresh }) => {
       toast.error('La cantidad debe ser mayor a 0');
       return;
     }
-    
+
     try {
+      // Preparar payload según las reglas de negocio
+      const payload = {
+        productId: parseInt(formData.productId),
+        batchNumber: formData.batchNumber,
+        manufacturingDate: formData.manufacturingDate,
+        expirationDate: formData.expirationDate,
+        initialQuantity: parseInt(formData.initialQuantity),
+        purchasePrice: parseFloat(formData.purchasePrice),
+        salePrice: parseFloat(formData.salePrice),
+        location: formData.location,
+        notes: formData.notes
+      };
+
+      // Solo incluir supplierId si tiene valor
+      if (formData.supplierId) {
+        payload.supplierId = parseInt(formData.supplierId);
+      }
+
+      // Solo incluir invoiceNumber si tiene valor
+      if (formData.invoiceNumber && formData.invoiceNumber.trim()) {
+        payload.invoiceNumber = formData.invoiceNumber.trim();
+      }
+
       if (isEditing && selectedBatch) {
-        await batchService.updateBatch(selectedBatch.id, formData);
+        await batchService.updateBatch(selectedBatch.id, payload);
         toast.success('Lote actualizado exitosamente');
       } else {
-        await batchService.createBatch(formData);
+        await batchService.createBatch(payload);
         toast.success('Lote creado exitosamente');
       }
-      
+
       setShowFormModal(false);
+      setSelectedProduct(null);
       fetchBatches();
       if (onRefresh) onRefresh(); // Notificar al padre
     } catch (error) {
-      toast.error(error.message || 'Error al guardar lote');
+      console.error('Error al guardar lote:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error al guardar lote';
+      toast.error(errorMessage);
     }
   };
 
@@ -387,7 +448,11 @@ const BatchesTab = ({ onRefresh }) => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        {batch.supplier?.name || 'N/A'}
+                        {batch.supplier ? (
+                          <span className="text-primary-600">{batch.supplier.name}</span>
+                        ) : (
+                          <span className="text-neutral-400 italic">Sin proveedor</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div>
@@ -519,8 +584,15 @@ const BatchesTab = ({ onRefresh }) => {
                   <select
                     required
                     value={formData.productId}
-                    onChange={(e) => setFormData({...formData, productId: e.target.value})}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    onChange={(e) => {
+                      const productId = e.target.value;
+                      setFormData({...formData, productId});
+                      handleProductSelect(productId);
+                    }}
+                    disabled={isEditing}
+                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 ${
+                      isEditing ? 'bg-neutral-100 cursor-not-allowed' : ''
+                    }`}
                   >
                     <option value="">Seleccionar producto</option>
                     {products.map(product => (
@@ -529,25 +601,73 @@ const BatchesTab = ({ onRefresh }) => {
                       </option>
                     ))}
                   </select>
+                  {isEditing && (
+                    <p className="text-xs text-neutral-500 mt-1">
+                      No se puede cambiar el producto al editar un lote
+                    </p>
+                  )}
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Proveedor *
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Proveedor
+                    {selectedProduct?.supplierId && (
+                      <span className="text-danger-500"> *</span>
+                    )}
+                    {!selectedProduct?.supplierId && (
+                      <span className="text-neutral-400 text-xs ml-1">(Opcional)</span>
+                    )}
                   </label>
-                  <select
-                    required
-                    value={formData.supplierId}
-                    onChange={(e) => setFormData({...formData, supplierId: e.target.value})}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">Seleccionar proveedor</option>
-                    {suppliers.map(supplier => (
-                      <option key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </option>
-                    ))}
-                  </select>
+
+                  {selectedProduct?.supplierId ? (
+                    // Producto CON proveedor → Campo bloqueado/solo lectura
+                    <>
+                      <select
+                        name="supplierId"
+                        value={formData.supplierId}
+                        required
+                        disabled
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg bg-neutral-100 cursor-not-allowed"
+                      >
+                        <option value={selectedProduct.supplierId}>
+                          {selectedProduct.supplier?.name ||
+                           suppliers.find(s => s.id === selectedProduct.supplierId)?.name ||
+                           `Proveedor ID: ${selectedProduct.supplierId}`}
+                        </option>
+                      </select>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        🔒 El proveedor está determinado por el producto y no se puede cambiar
+                      </p>
+                    </>
+                  ) : selectedProduct ? (
+                    // Producto SIN proveedor → Campo opcional
+                    <>
+                      <select
+                        name="supplierId"
+                        value={formData.supplierId || ''}
+                        onChange={(e) => setFormData({...formData, supplierId: e.target.value})}
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">Sin proveedor (opcional)</option>
+                        {suppliers.map(supplier => (
+                          <option key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        ℹ️ Opcional: Puedes asignar un proveedor específico para este lote o dejarlo sin proveedor
+                      </p>
+                    </>
+                  ) : (
+                    // Sin producto seleccionado todavía
+                    <select
+                      disabled
+                      className="w-full px-4 py-2 border border-neutral-300 rounded-lg bg-neutral-50 cursor-not-allowed"
+                    >
+                      <option value="">Selecciona primero un producto</option>
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -649,15 +769,19 @@ const BatchesTab = ({ onRefresh }) => {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Número de Factura
+                    Número de Factura/Recibo
+                    <span className="text-neutral-400 ml-1">(Opcional)</span>
                   </label>
                   <input
                     type="text"
                     value={formData.invoiceNumber}
                     onChange={(e) => setFormData({...formData, invoiceNumber: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    placeholder="FAC-001"
+                    placeholder="Ej: FACT-001"
                   />
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Solo si tienes factura o recibo físico del lote
+                  </p>
                 </div>
 
                 <div className="col-span-2">
@@ -721,7 +845,11 @@ const BatchesTab = ({ onRefresh }) => {
                 
                 <div>
                   <p className="text-sm text-neutral-600">Proveedor</p>
-                  <p className="font-semibold">{selectedBatch.supplier?.name || 'N/A'}</p>
+                  {selectedBatch.supplier ? (
+                    <p className="font-semibold text-primary-600">{selectedBatch.supplier.name}</p>
+                  ) : (
+                    <p className="font-semibold text-neutral-400 italic">Sin proveedor</p>
+                  )}
                 </div>
                 
                 <div>
@@ -776,8 +904,12 @@ const BatchesTab = ({ onRefresh }) => {
                 </div>
                 
                 <div>
-                  <p className="text-sm text-neutral-600">Factura</p>
-                  <p className="font-semibold">{selectedBatch.invoiceNumber || 'N/A'}</p>
+                  <p className="text-sm text-neutral-600">Factura/Recibo</p>
+                  {selectedBatch.invoiceNumber ? (
+                    <p className="font-semibold">{selectedBatch.invoiceNumber}</p>
+                  ) : (
+                    <p className="font-semibold text-neutral-400 italic">Sin factura</p>
+                  )}
                 </div>
                 
                 <div>

@@ -120,6 +120,10 @@ function printError(message, error = null) {
             console.log(colors.red + '    └─ Status: ' + error.response.status + colors.reset);
             console.log(colors.red + '    └─ Data: ' + JSON.stringify(error.response.data, null, 2) + colors.reset);
         }
+        // Mostrar stack trace para debugging
+        if (error.stack) {
+            console.log(colors.dim + '    └─ Stack: ' + error.stack.split('\n').slice(0, 3).join('\n           ') + colors.reset);
+        }
     }
 }
 
@@ -325,23 +329,16 @@ async function testCreateSuppliers() {
 async function createProductWithImage(productData) {
     const FormData = require('form-data');
     const formData = new FormData();
-    
-    // Agregar todos los campos del producto
+
+    // ✅ IMPORTANTE: Primero agregar la imagen
+    const imageStream = fs.createReadStream(PRODUCT_IMAGE_PATH);
+    formData.append('image', imageStream);
+
+    // Después agregar todos los campos del producto
     Object.keys(productData).forEach(key => {
-        formData.append(key, productData[key]);
+        formData.append(key, String(productData[key]));
     });
-    
-    // ✅ SOLUCIÓN DEFINITIVA: Usar createReadStream con todas las opciones
-    const fileStream = fs.createReadStream(PRODUCT_IMAGE_PATH);
-    const stats = fs.statSync(PRODUCT_IMAGE_PATH);
-    const filename = path.basename(PRODUCT_IMAGE_PATH);
-    
-    formData.append('image', fileStream, {
-        filename: filename,
-        contentType: 'image/jpeg',
-        knownLength: stats.size
-    });
-    
+
     try {
         const response = await axios.post(`${API_URL}/products`, formData, {
             headers: {
@@ -351,13 +348,9 @@ async function createProductWithImage(productData) {
             maxContentLength: Infinity,
             maxBodyLength: Infinity
         });
-        
+
         return response.data;
     } catch (error) {
-        // Cerrar el stream en caso de error
-        if (fileStream && !fileStream.destroyed) {
-            fileStream.destroy();
-        }
         throw error;
     }
 }

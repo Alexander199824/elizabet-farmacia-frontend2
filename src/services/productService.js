@@ -79,18 +79,42 @@ const productService = {
       if (productData.image && productData.image instanceof File) {
         const formData = new FormData();
 
-        // Agregar todos los campos al FormData
+        // IMPORTANTE: Primero agregar la imagen
+        formData.append('image', productData.image);
+
+        // Después agregar todos los demás campos
         Object.keys(productData).forEach(key => {
           if (key === 'image') {
-            formData.append('image', productData.image);
+            // Ya agregamos la imagen arriba
+            return;
+          }
+
+          const value = productData[key];
+
+          // Si es null o undefined, convertir a string vacío (el backend lo manejará)
+          // Si es un valor válido, convertirlo a string
+          if (value === null || value === undefined) {
+            formData.append(key, '');
           } else {
-            formData.append(key, productData[key]);
+            formData.append(key, String(value));
           }
         });
 
+        console.log('🚀 [productService] Enviando FormData al backend...');
+        console.log('🚀 [productService] Campos en FormData:');
+        for (let [key, value] of formData.entries()) {
+          if (key === 'image') {
+            console.log(`   ${key}:`, value instanceof File ? `[File: ${value.name}]` : value);
+          } else {
+            console.log(`   ${key}:`, value);
+          }
+        }
+
+        // CRÍTICO: Eliminar el Content-Type default y dejar que axios lo establezca automáticamente
+        // con el boundary correcto para multipart/form-data
         const response = await api.post('/products', formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            'Content-Type': undefined  // Forzar a axios a generar el correcto
           }
         });
         return response.data;
@@ -100,7 +124,14 @@ const productService = {
         return response.data;
       }
     } catch (error) {
-      throw error.response?.data || error.message;
+      console.error('❌ [productService] Error capturado:', error);
+      console.error('❌ [productService] Error.response:', error.response);
+      console.error('❌ [productService] Error.response?.status:', error.response?.status);
+      console.error('❌ [productService] Error.response?.data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('❌ [productService] Error.message:', error.message);
+
+      // NO transformar el error, lanzarlo completo
+      throw error;
     }
   },
 
@@ -111,18 +142,32 @@ const productService = {
       if (productData.image && productData.image instanceof File) {
         const formData = new FormData();
 
-        // Agregar todos los campos al FormData
+        // IMPORTANTE: Primero agregar la imagen
+        formData.append('image', productData.image);
+
+        // Después agregar todos los demás campos
         Object.keys(productData).forEach(key => {
           if (key === 'image') {
-            formData.append('image', productData.image);
+            // Ya agregamos la imagen arriba
+            return;
+          }
+
+          const value = productData[key];
+
+          // Si es null o undefined, convertir a string vacío (el backend lo manejará)
+          // Si es un valor válido, convertirlo a string
+          if (value === null || value === undefined) {
+            formData.append(key, '');
           } else {
-            formData.append(key, productData[key]);
+            formData.append(key, String(value));
           }
         });
 
+        // CRÍTICO: Eliminar el Content-Type default y dejar que axios lo establezca automáticamente
+        // con el boundary correcto para multipart/form-data
         const response = await api.put(`/products/${id}`, formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            'Content-Type': undefined  // Forzar a axios a generar el correcto
           }
         });
         return response.data;

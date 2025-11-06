@@ -33,6 +33,12 @@ import BodegaDashboard from './pages/bodega/BodegaDashboard';
 import RepartidorDashboard from './pages/repartidor/RepartidorDashboard';
 import ClienteDashboard from './pages/cliente/ClienteDashboard';
 
+// PÁGINAS CLIENTE
+import ComprasPage from './pages/cliente/ComprasPage';
+import MisPedidosPage from './pages/cliente/MisPedidosPage';
+import MisRecibosPage from './pages/cliente/MisRecibosPage';
+import MiPerfilPage from './pages/cliente/MiPerfilPage';
+
 // PÁGINAS ADMIN
 import ProductosPage from './pages/admin/ProductosPage';
 import VentasPage from './pages/admin/VentasPage';
@@ -356,14 +362,33 @@ function AppContent() {
 
         {/* ========== RUTAS DE CLIENTE ========== */}
         <Route
+          path="/dashboard/compras"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.CLIENTE]}>
+              <DashboardLayout>
+                <ComprasPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/dashboard/pedidos"
           element={
             <ProtectedRoute allowedRoles={[USER_ROLES.CLIENTE]}>
               <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Mis Pedidos</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
+                <MisPedidosPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/recibos"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.CLIENTE]}>
+              <DashboardLayout>
+                <MisRecibosPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -374,24 +399,7 @@ function AppContent() {
           element={
             <ProtectedRoute allowedRoles={[USER_ROLES.CLIENTE]}>
               <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Mi Perfil</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard/facturas"
-          element={
-            <ProtectedRoute allowedRoles={[USER_ROLES.CLIENTE]}>
-              <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Mis Facturas</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
+                <MiPerfilPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
