@@ -219,6 +219,23 @@ const UsuariosPage = () => {
     }
   };
 
+  // Manejador específico para cambiar rol
+  const handleRoleChange = async (userId, newRole) => {
+    if (!window.confirm(`¿Estás seguro de cambiar el rol a ${newRole}?`)) {
+      return;
+    }
+
+    try {
+      await userService.changeUserRole(userId, newRole);
+      toast.success(`Rol cambiado a ${newRole} exitosamente`);
+      fetchUsers();
+      fetchStats();
+    } catch (error) {
+      console.error('Error changing role:', error);
+      toast.error(error.message || 'Error al cambiar el rol');
+    }
+  };
+
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > pagination.totalPages) return;
     setPagination(prev => ({ ...prev, page: newPage }));
@@ -378,9 +395,17 @@ const UsuariosPage = () => {
                       {user.email}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
-                        {user.role}
-                      </span>
+                      <select
+                        value={user.role}
+                        onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border-0 cursor-pointer focus:ring-2 focus:ring-primary-500 ${getRoleBadge(user.role)}`}
+                      >
+                        <option value={USER_ROLES.ADMIN}>👑 Administrador</option>
+                        <option value={USER_ROLES.VENDEDOR}>💼 Vendedor</option>
+                        <option value={USER_ROLES.BODEGA}>📦 Bodega</option>
+                        <option value={USER_ROLES.REPARTIDOR}>🚚 Repartidor</option>
+                        <option value={USER_ROLES.CLIENTE}>👤 Cliente</option>
+                      </select>
                     </td>
                     <td className="px-6 py-4 text-sm text-neutral-600">
                       {user.phone || '-'}

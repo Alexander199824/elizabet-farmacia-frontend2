@@ -16,14 +16,6 @@ const ProductFilters = ({ onFilterChange, activeFilters }) => {
     onFilterChange({ category });
   };
 
-  const handleStockChange = (stockStatus) => {
-    onFilterChange({ stockStatus });
-  };
-
-  const handlePriceChange = (priceRange) => {
-    onFilterChange({ priceRange });
-  };
-
   const clearFilters = () => {
     onFilterChange({});
   };
@@ -98,106 +90,6 @@ const ProductFilters = ({ onFilterChange, activeFilters }) => {
                 <span className="text-sm">{cat.label}</span>
               </label>
             ))}
-          </div>
-        </div>
-
-        {/* Disponibilidad */}
-        <div className="mb-6">
-          <h4 className="font-semibold text-neutral-700 mb-3">Disponibilidad</h4>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="stock"
-                checked={!activeFilters.stockStatus}
-                onChange={() => handleStockChange('')}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Todos</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="stock"
-                value="ok"
-                checked={activeFilters.stockStatus === 'ok'}
-                onChange={(e) => handleStockChange(e.target.value)}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">En stock</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="stock"
-                value="low"
-                checked={activeFilters.stockStatus === 'low'}
-                onChange={(e) => handleStockChange(e.target.value)}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Stock bajo</span>
-            </label>
-          </div>
-        </div>
-
-        {/* Rango de precio */}
-        <div className="mb-6">
-          <h4 className="font-semibold text-neutral-700 mb-3">Precio</h4>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="price"
-                checked={!activeFilters.priceRange}
-                onChange={() => handlePriceChange('')}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Todos los precios</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="price"
-                value="0-50"
-                checked={activeFilters.priceRange === '0-50'}
-                onChange={(e) => handlePriceChange(e.target.value)}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Menos de Q50</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="price"
-                value="50-100"
-                checked={activeFilters.priceRange === '50-100'}
-                onChange={(e) => handlePriceChange(e.target.value)}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Q50 - Q100</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="price"
-                value="100-200"
-                checked={activeFilters.priceRange === '100-200'}
-                onChange={(e) => handlePriceChange(e.target.value)}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Q100 - Q200</span>
-            </label>
-            <label className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-50 p-2 rounded-lg transition-colors">
-              <input
-                type="radio"
-                name="price"
-                value="200-999999"
-                checked={activeFilters.priceRange === '200-999999'}
-                onChange={(e) => handlePriceChange(e.target.value)}
-                className="text-primary-500 focus:ring-primary-500"
-              />
-              <span className="text-sm">Más de Q200</span>
-            </label>
           </div>
         </div>
 

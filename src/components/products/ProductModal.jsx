@@ -178,16 +178,6 @@ const ProductModal = ({ product, isOpen, onClose }) => {
                       {formatCurrency(product.price)}
                     </p>
                   </div>
-                  {product.costPrice && product.costPrice !== product.price && (
-                    <div className="mb-2">
-                      <p className="text-sm text-neutral-400 line-through">
-                        {formatCurrency(product.costPrice)}
-                      </p>
-                      <p className="text-sm text-success-600 font-medium">
-                        Ahorra {formatCurrency(product.costPrice - product.price)}
-                      </p>
-                    </div>
-                  )}
                 </div>
 
                 <button

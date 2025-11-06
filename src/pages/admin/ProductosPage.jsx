@@ -974,7 +974,7 @@ const ProductosPage = () => {
                   <input
                     type="number"
                     name="price"
-                    value={formData.price}
+                    value={formData.price === '' || formData.price === 0 ? '' : formData.price}
                     onChange={handleFormChange}
                     required
                     step="0.01"
@@ -992,7 +992,7 @@ const ProductosPage = () => {
                   <input
                     type="number"
                     name="costPrice"
-                    value={formData.costPrice}
+                    value={formData.costPrice === '' || formData.costPrice === 0 ? '' : formData.costPrice}
                     onChange={handleFormChange}
                     step="0.01"
                     min="0"
@@ -1009,7 +1009,7 @@ const ProductosPage = () => {
                   <input
                     type="number"
                     name="minStock"
-                    value={formData.minStock}
+                    value={formData.minStock === '' || formData.minStock === 0 ? '' : formData.minStock}
                     onChange={handleFormChange}
                     min="0"
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -1025,7 +1025,7 @@ const ProductosPage = () => {
                   <input
                     type="number"
                     name="maxStock"
-                    value={formData.maxStock}
+                    value={formData.maxStock === '' || formData.maxStock === 0 ? '' : formData.maxStock}
                     onChange={handleFormChange}
                     min="0"
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"

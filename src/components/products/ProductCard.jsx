@@ -116,11 +116,6 @@ const ProductCard = ({ product }) => {
               <p className="text-2xl font-bold text-primary-600">
                 {formatCurrency(product.price)}
               </p>
-              {product.costPrice && product.costPrice !== product.price && (
-                <p className="text-xs text-neutral-400 line-through">
-                  {formatCurrency(product.costPrice)}
-                </p>
-              )}
             </div>
           </div>
 

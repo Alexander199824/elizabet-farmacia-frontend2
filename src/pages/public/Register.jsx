@@ -104,6 +104,7 @@ const Register = () => {
         password: formData.password,
         phone: formData.phone.trim() || undefined,
         role: 'cliente',
+        isActive: true, // Asegurar que el usuario se registre como activo
       };
 
       await register(userData);

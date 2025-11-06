@@ -92,6 +92,15 @@ export const AuthProvider = ({ children }) => {
     toast.success('Sesión cerrada');
   };
 
+  const updateUser = (updatedUserData) => {
+    // Actualizar el estado del usuario
+    const updatedUser = { ...user, ...updatedUserData };
+    setUser(updatedUser);
+
+    // Actualizar también en localStorage para persistencia
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
   const value = {
     user,
     loading,
@@ -100,6 +109,7 @@ export const AuthProvider = ({ children }) => {
     register,
     registerWithGoogle,
     logout,
+    updateUser,
     isAuthenticated: authService.isAuthenticated(),
   };
 

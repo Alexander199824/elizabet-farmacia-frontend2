@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { FiFileText, FiDownload, FiEye, FiCalendar, FiDollarSign, FiPackage } from 'react-icons/fi';
-import invoiceService from '../../services/invoiceService';
+import receiptService from '../../services/receiptService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
@@ -28,14 +28,9 @@ const MisRecibosPage = () => {
   const fetchRecibos = async () => {
     setLoading(true);
     try {
-      const response = await invoiceService.getAllInvoices({
-        clientId: user.id,
-        page: 1,
-        limit: 100,
-        sortBy: 'invoiceDate',
-        sortOrder: 'desc'
-      });
-      setRecibos(response.invoices || []);
+      // Usar el servicio de recibos correcto según la guía del backend
+      const response = await receiptService.getClientReceipts(user.id, 100);
+      setRecibos(response.receipts || []);
     } catch (error) {
       console.error('Error fetching recibos:', error);
       toast.error('Error al cargar los recibos');
@@ -46,19 +41,17 @@ const MisRecibosPage = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      pendiente: { label: 'Pendiente', color: 'warning' },
-      en_proceso: { label: 'En Proceso', color: 'primary' },
-      completada: { label: 'Completada', color: 'success' },
-      cancelada: { label: 'Cancelada', color: 'danger' },
-      anulada: { label: 'Anulada', color: 'danger' },
+      emitido: { label: 'Emitido', color: 'success' },
+      enviado: { label: 'Enviado', color: 'primary' },
+      cancelado: { label: 'Cancelado', color: 'danger' },
     };
-    const config = statusConfig[status] || statusConfig.pendiente;
+    const config = statusConfig[status] || statusConfig.emitido;
     return <span className={`badge badge-${config.color}`}>{config.label}</span>;
   };
 
   const handleViewDetails = async (recibo) => {
     try {
-      const details = await invoiceService.getInvoiceById(recibo.id);
+      const details = await receiptService.getReceiptById(recibo.id);
       setSelectedRecibo(details);
       setShowModal(true);
     } catch (error) {
@@ -67,9 +60,15 @@ const MisRecibosPage = () => {
     }
   };
 
-  const handleDownloadRecibo = (recibo) => {
-    toast.success(`Descargando recibo ${recibo.invoiceNumber}...`);
-    // Aquí implementarías la descarga del PDF
+  const handleDownloadRecibo = async (recibo) => {
+    try {
+      toast.loading('Generando PDF...', { id: 'download-pdf' });
+      await receiptService.downloadReceiptPDF(recibo.id, `Recibo-${recibo.receiptNumber}.pdf`);
+      toast.success('PDF descargado correctamente', { id: 'download-pdf' });
+    } catch (error) {
+      console.error('Error downloading recibo:', error);
+      toast.error('Error al descargar el PDF', { id: 'download-pdf' });
+    }
   };
 
   if (loading) {
@@ -117,7 +116,7 @@ const MisRecibosPage = () => {
             <div>
               <p className="text-sm text-neutral-600">Total Gastado</p>
               <p className="text-2xl font-bold">
-                {formatCurrency(recibos.reduce((sum, r) => sum + r.total, 0))}
+                {formatCurrency(recibos.reduce((sum, r) => sum + (r.amount || 0), 0))}
               </p>
             </div>
           </div>
@@ -128,9 +127,9 @@ const MisRecibosPage = () => {
               <FiPackage className="text-2xl text-primary-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Completados</p>
+              <p className="text-sm text-neutral-600">Emitidos</p>
               <p className="text-2xl font-bold">
-                {recibos.filter(r => r.status === 'completada').length}
+                {recibos.filter(r => r.status === 'emitido').length}
               </p>
             </div>
           </div>
@@ -169,21 +168,21 @@ const MisRecibosPage = () => {
                   <tr key={recibo.id} className="hover:bg-neutral-50 transition-colors">
                     <td className="px-6 py-4">
                       <span className="font-semibold text-primary-600">
-                        {recibo.invoiceNumber}
+                        {recibo.receiptNumber}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-neutral-700">
                       <div className="flex items-center space-x-2">
                         <FiCalendar className="text-neutral-400" />
-                        <span>{formatDate(recibo.invoiceDate)}</span>
+                        <span>{formatDate(recibo.issueDate)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-neutral-700">
-                      {recibo.items?.length || 0} productos
+                      {recibo.invoice?.items?.length || 0} productos
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-success-600">
-                        {formatCurrency(recibo.total)}
+                        {recibo.currency} {formatCurrency(recibo.amount)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -231,9 +230,14 @@ const MisRecibosPage = () => {
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">
-                  Recibo {selectedRecibo.invoiceNumber}
-                </h2>
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    Recibo {selectedRecibo.receiptNumber}
+                  </h2>
+                  <p className="text-sm text-neutral-600">
+                    Pedido: {selectedRecibo.invoice?.invoiceNumber}
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowModal(false)}
                   className="text-neutral-500 hover:text-neutral-700"
@@ -243,37 +247,76 @@ const MisRecibosPage = () => {
               </div>
             </div>
             <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-600">Fecha:</span>
-                <span className="font-semibold">{formatDate(selectedRecibo.invoiceDate)}</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm text-neutral-600">Fecha de Emisión:</span>
+                  <p className="font-semibold">{formatDate(selectedRecibo.issueDate)}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-neutral-600">Estado:</span>
+                  <div className="mt-1">{getStatusBadge(selectedRecibo.status)}</div>
+                </div>
+                <div>
+                  <span className="text-sm text-neutral-600">Método de Pago:</span>
+                  <p className="font-semibold capitalize">{selectedRecibo.paymentMethod}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-neutral-600">Moneda:</span>
+                  <p className="font-semibold">{selectedRecibo.currency}</p>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-600">Estado:</span>
-                {getStatusBadge(selectedRecibo.status)}
-              </div>
+
               <div className="border-t pt-4">
-                <h3 className="font-semibold mb-3">Productos:</h3>
+                <h3 className="font-semibold mb-3">Productos del Pedido:</h3>
                 <div className="space-y-2">
-                  {selectedRecibo.items?.map((item, idx) => (
+                  {selectedRecibo.invoice?.items?.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
                       <div>
-                        <p className="font-medium">{item.productName}</p>
+                        <p className="font-medium">{item.product?.name || 'Producto'}</p>
                         <p className="text-sm text-neutral-600">
-                          {item.quantity} x {formatCurrency(item.unitPrice)}
+                          Cantidad: {item.quantity} x {formatCurrency(item.unitPrice)}
                         </p>
                       </div>
                       <span className="font-semibold">
-                        {formatCurrency(item.quantity * item.unitPrice)}
+                        {formatCurrency(item.total)}
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between text-lg font-bold">
-                  <span>Total:</span>
-                  <span className="text-success-600">{formatCurrency(selectedRecibo.total)}</span>
+
+              <div className="border-t pt-4 space-y-2">
+                <div className="flex items-center justify-between text-neutral-700">
+                  <span>Subtotal:</span>
+                  <span className="font-semibold">{formatCurrency(selectedRecibo.invoice?.subtotal || selectedRecibo.amount)}</span>
                 </div>
+                {selectedRecibo.invoice?.discount > 0 && (
+                  <div className="flex items-center justify-between text-danger-600">
+                    <span>Descuento:</span>
+                    <span className="font-semibold">-{formatCurrency(selectedRecibo.invoice.discount)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-xl font-bold pt-2 border-t">
+                  <span>Total:</span>
+                  <span className="text-success-600">{selectedRecibo.currency} {formatCurrency(selectedRecibo.amount)}</span>
+                </div>
+              </div>
+
+              {selectedRecibo.notes && (
+                <div className="border-t pt-4">
+                  <span className="text-sm text-neutral-600">Notas:</span>
+                  <p className="mt-1 text-neutral-700">{selectedRecibo.notes}</p>
+                </div>
+              )}
+
+              <div className="border-t pt-4 flex justify-end">
+                <button
+                  onClick={() => handleDownloadRecibo(selectedRecibo)}
+                  className="btn-primary flex items-center space-x-2"
+                >
+                  <FiDownload />
+                  <span>Descargar PDF</span>
+                </button>
               </div>
             </div>
           </div>

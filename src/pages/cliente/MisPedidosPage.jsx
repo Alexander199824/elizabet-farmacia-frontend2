@@ -6,19 +6,25 @@
  */
 
 import { useState, useEffect } from 'react';
-import { FiPackage, FiClock, FiCheckCircle, FiXCircle, FiTruck, FiEye } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiPackage, FiClock, FiCheckCircle, FiXCircle, FiTruck, FiEye, FiRepeat, FiShoppingCart } from 'react-icons/fi';
 import invoiceService from '../../services/invoiceService';
+import productService from '../../services/productService';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 const MisPedidosPage = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { addToCart, toggleCart } = useCart();
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [repeatingOrder, setRepeatingOrder] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -29,13 +35,14 @@ const MisPedidosPage = () => {
   const fetchPedidos = async () => {
     setLoading(true);
     try {
-      const response = await invoiceService.getAllInvoices({
+      // Usar los parámetros correctos según la guía del backend
+      const params = {
         clientId: user.id,
         page: 1,
-        limit: 100,
-        sortBy: 'invoiceDate',
-        sortOrder: 'desc'
-      });
+        limit: 100
+      };
+
+      const response = await invoiceService.getAllInvoices(params);
       setPedidos(response.invoices || []);
     } catch (error) {
       console.error('Error fetching pedidos:', error);
@@ -101,6 +108,93 @@ const MisPedidosPage = () => {
     }
   };
 
+  const handleRepeatOrder = async (pedido) => {
+    if (repeatingOrder) return;
+
+    setRepeatingOrder(true);
+    const loadingToast = toast.loading('Verificando disponibilidad de productos...');
+
+    try {
+      // Obtener detalles completos del pedido
+      const details = await invoiceService.getInvoiceById(pedido.id);
+
+      if (!details.items || details.items.length === 0) {
+        toast.error('Este pedido no tiene productos', { id: loadingToast });
+        return;
+      }
+
+      let addedCount = 0;
+      let unavailableCount = 0;
+      const unavailableProducts = [];
+
+      // Verificar cada producto y su stock
+      for (const item of details.items) {
+        try {
+          // Obtener información actualizada del producto
+          const product = await productService.getProductById(item.product?.id || item.productId);
+
+          // Verificar si el producto está activo y tiene stock
+          if (product.isActive && product.stock > 0) {
+            // Calcular cantidad a agregar (no más de lo que hay en stock)
+            const quantityToAdd = Math.min(item.quantity, product.stock);
+
+            // Agregar al carrito
+            addToCart(product, quantityToAdd);
+            addedCount++;
+
+            // Informar si se agregó menos cantidad de la original
+            if (quantityToAdd < item.quantity) {
+              toast.warning(
+                `${product.name}: Solo ${quantityToAdd} disponibles de ${item.quantity} solicitados`,
+                { duration: 4000 }
+              );
+            }
+          } else {
+            unavailableCount++;
+            unavailableProducts.push(item.product?.name || item.productName || 'Producto desconocido');
+          }
+        } catch (error) {
+          console.error(`Error al obtener producto ${item.productId}:`, error);
+          unavailableCount++;
+          unavailableProducts.push(item.product?.name || item.productName || 'Producto desconocido');
+        }
+      }
+
+      // Mostrar resultados
+      if (addedCount > 0) {
+        toast.success(
+          `${addedCount} producto${addedCount > 1 ? 's agregados' : ' agregado'} al carrito`,
+          { id: loadingToast, duration: 3000 }
+        );
+
+        if (unavailableCount > 0) {
+          toast.error(
+            `${unavailableCount} producto${unavailableCount > 1 ? 's no disponibles' : ' no disponible'}: ${unavailableProducts.join(', ')}`,
+            { duration: 5000 }
+          );
+        }
+
+        // Abrir el carrito para que el usuario vea los productos agregados
+        setTimeout(() => toggleCart(), 500);
+      } else {
+        toast.error(
+          'Ningún producto del pedido está disponible actualmente',
+          { id: loadingToast, duration: 4000 }
+        );
+      }
+
+    } catch (error) {
+      console.error('Error al repetir pedido:', error);
+      toast.error('Error al procesar el pedido', { id: loadingToast });
+    } finally {
+      setRepeatingOrder(false);
+    }
+  };
+
+  const handleNewOrder = () => {
+    navigate('/dashboard/compras');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -119,9 +213,18 @@ const MisPedidosPage = () => {
             Seguimiento de tus pedidos y compras
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <FiPackage className="text-2xl text-primary-600" />
-          <span className="text-lg font-semibold">{pedidosFiltrados.length} pedidos</span>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleNewOrder}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <FiShoppingCart />
+            <span>Nuevo Pedido</span>
+          </button>
+          <div className="flex items-center space-x-2">
+            <FiPackage className="text-2xl text-primary-600" />
+            <span className="text-lg font-semibold">{pedidosFiltrados.length} pedidos</span>
+          </div>
         </div>
       </div>
 
@@ -246,14 +349,24 @@ const MisPedidosPage = () => {
                   </div>
 
                   {/* Acciones */}
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <button
                       onClick={() => handleViewDetails(pedido)}
-                      className="btn-outline flex items-center space-x-2"
+                      className="btn-outline flex items-center justify-center space-x-2"
                     >
                       <FiEye />
                       <span>Ver Detalles</span>
                     </button>
+                    {pedido.status === 'completada' && (
+                      <button
+                        onClick={() => handleRepeatOrder(pedido)}
+                        disabled={repeatingOrder}
+                        className="btn-primary flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FiRepeat />
+                        <span>{repeatingOrder ? 'Procesando...' : 'Repetir Pedido'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -358,6 +471,26 @@ const MisPedidosPage = () => {
                   </div>
                 )}
               </div>
+
+              {/* Botón Repetir Pedido en Modal */}
+              {selectedPedido.status === 'completada' && (
+                <div className="border-t pt-4">
+                  <button
+                    onClick={() => {
+                      handleRepeatOrder(selectedPedido);
+                      setShowModal(false);
+                    }}
+                    disabled={repeatingOrder}
+                    className="w-full btn-primary flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FiRepeat className="text-xl" />
+                    <span>{repeatingOrder ? 'Procesando...' : 'Repetir este Pedido'}</span>
+                  </button>
+                  <p className="text-xs text-neutral-500 text-center mt-2">
+                    Se agregarán al carrito los productos disponibles
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

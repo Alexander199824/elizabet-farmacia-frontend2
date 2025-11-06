@@ -43,9 +43,9 @@ const LotesPage = () => {
     batchNumber: '',
     manufacturingDate: '',
     expirationDate: '',
-    initialQuantity: 0,
-    purchasePrice: 0,
-    salePrice: 0,
+    initialQuantity: '',
+    purchasePrice: '',
+    salePrice: '',
     location: '',
     invoiceNumber: '',
     notes: ''
@@ -158,9 +158,9 @@ const LotesPage = () => {
         batchNumber: batch.batchNumber || '',
         manufacturingDate: batch.manufacturingDate?.split('T')[0] || '',
         expirationDate: batch.expirationDate?.split('T')[0] || '',
-        initialQuantity: batch.initialQuantity || 0,
-        purchasePrice: batch.purchasePrice || 0,
-        salePrice: batch.salePrice || 0,
+        initialQuantity: batch.initialQuantity || '',
+        purchasePrice: batch.purchasePrice || '',
+        salePrice: batch.salePrice || '',
         location: batch.location || '',
         invoiceNumber: batch.invoiceNumber || '',
         notes: batch.notes || ''
@@ -184,9 +184,9 @@ const LotesPage = () => {
         batchNumber: `LOTE-${Date.now()}`,
         manufacturingDate: '',
         expirationDate: '',
-        initialQuantity: 0,
-        purchasePrice: 0,
-        salePrice: 0,
+        initialQuantity: '',
+        purchasePrice: '',
+        salePrice: '',
         location: '',
         invoiceNumber: '',
         notes: ''
@@ -217,7 +217,7 @@ const LotesPage = () => {
       toast.error('Ingresa la fecha de vencimiento');
       return;
     }
-    if (formData.initialQuantity <= 0) {
+    if (!formData.initialQuantity || parseInt(formData.initialQuantity) <= 0) {
       toast.error('La cantidad debe ser mayor a 0');
       return;
     }
@@ -229,9 +229,9 @@ const LotesPage = () => {
         batchNumber: formData.batchNumber,
         manufacturingDate: formData.manufacturingDate,
         expirationDate: formData.expirationDate,
-        initialQuantity: parseInt(formData.initialQuantity),
-        purchasePrice: parseFloat(formData.purchasePrice),
-        salePrice: parseFloat(formData.salePrice),
+        initialQuantity: parseInt(formData.initialQuantity) || 0,
+        purchasePrice: parseFloat(formData.purchasePrice) || 0,
+        salePrice: parseFloat(formData.salePrice) || 0,
         location: formData.location,
         notes: formData.notes
       };
@@ -723,7 +723,7 @@ const LotesPage = () => {
                     required
                     min="1"
                     value={formData.initialQuantity}
-                    onChange={(e) => setFormData({...formData, initialQuantity: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setFormData({...formData, initialQuantity: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="100"
                   />
@@ -763,7 +763,7 @@ const LotesPage = () => {
                     step="0.01"
                     min="0"
                     value={formData.purchasePrice}
-                    onChange={(e) => setFormData({...formData, purchasePrice: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({...formData, purchasePrice: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="0.00"
                   />
@@ -778,7 +778,7 @@ const LotesPage = () => {
                     step="0.01"
                     min="0"
                     value={formData.salePrice}
-                    onChange={(e) => setFormData({...formData, salePrice: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({...formData, salePrice: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="0.00"
                   />

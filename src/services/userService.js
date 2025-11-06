@@ -104,7 +104,14 @@ const userService = {
   // Actualizar perfil
   updateProfile: async (userData) => {
     try {
-      const response = await api.put('/users/profile', userData);
+      // Detectar si userData es FormData (para soportar imágenes)
+      const isFormData = userData instanceof FormData;
+
+      const response = await api.put('/users/profile', userData, {
+        headers: isFormData ? {
+          'Content-Type': 'multipart/form-data'
+        } : undefined
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
@@ -146,6 +153,32 @@ const userService = {
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
+    }
+  },
+
+  // Cambiar rol de usuario (método específico)
+  changeUserRole: async (userId, newRole) => {
+    try {
+      // Validar que el rol sea válido
+      const ROLES_VALIDOS = ['admin', 'vendedor', 'bodega', 'repartidor', 'cliente'];
+
+      if (!ROLES_VALIDOS.includes(newRole)) {
+        throw new Error(`Rol inválido. Roles válidos: ${ROLES_VALIDOS.join(', ')}`);
+      }
+
+      // Solo enviar el campo role como recomienda el backend
+      const response = await api.put(`/users/${userId}`, {
+        role: newRole
+      });
+
+      return response.data;
+    } catch (error) {
+      // Manejo de errores específico
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 'Error al cambiar rol';
+        throw new Error(errorMessage);
+      }
+      throw error;
     }
   }
 };

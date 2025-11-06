@@ -6,34 +6,59 @@
  */
 
 import { useState, useEffect } from 'react';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiSave, FiEdit2 } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiMapPin, FiSave, FiEdit2, FiLock, FiCalendar, FiCreditCard } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import userService from '../../services/userService';
 import toast from 'react-hot-toast';
 
 const MiPerfilPage = () => {
+  // Helper para formatear fecha para mostrar
+  const formatDisplayDate = (dateString) => {
+    if (!dateString) return 'No especificado';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'No especificado';
+
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('es-GT', options);
+  };
   const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     address: '',
-    city: '',
-    department: '',
+    dpi: '',
+    birthDate: '',
+  });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
   });
 
   useEffect(() => {
     if (user) {
+      // Formatear birthDate si existe (de ISO a YYYY-MM-DD para el input date)
+      let formattedBirthDate = '';
+      if (user.birthDate) {
+        const date = new Date(user.birthDate);
+        if (!isNaN(date.getTime())) {
+          formattedBirthDate = date.toISOString().split('T')[0];
+        }
+      }
+
       setFormData({
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         email: user.email || '',
         phone: user.phone || '',
         address: user.address || '',
-        city: user.city || '',
-        department: user.department || '',
+        dpi: user.dpi || '',
+        birthDate: formattedBirthDate,
       });
     }
   }, [user]);
@@ -51,37 +76,100 @@ const MiPerfilPage = () => {
     setLoading(true);
 
     try {
-      // Aquí deberías llamar a un servicio para actualizar el usuario
-      // await userService.updateProfile(user.id, formData);
+      // Preparar datos para enviar
+      const dataToSend = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        address: formData.address,
+        dpi: formData.dpi,
+        birthDate: formData.birthDate,
+      };
 
-      // Por ahora simulamos la actualización
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Llamar al servicio para actualizar el perfil
+      const response = await userService.updateProfile(dataToSend);
 
-      if (updateUser) {
-        updateUser({ ...user, ...formData });
+      // Actualizar el contexto con los nuevos datos
+      if (updateUser && response.user) {
+        updateUser(response.user);
       }
 
       toast.success('Perfil actualizado correctamente');
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast.error('Error al actualizar el perfil');
+      toast.error(error.message || 'Error al actualizar el perfil');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCancel = () => {
+    // Formatear birthDate si existe
+    let formattedBirthDate = '';
+    if (user.birthDate) {
+      const date = new Date(user.birthDate);
+      if (!isNaN(date.getTime())) {
+        formattedBirthDate = date.toISOString().split('T')[0];
+      }
+    }
+
     setFormData({
       firstName: user.firstName || '',
       lastName: user.lastName || '',
       email: user.email || '',
       phone: user.phone || '',
       address: user.address || '',
-      city: user.city || '',
-      department: user.department || '',
+      dpi: user.dpi || '',
+      birthDate: formattedBirthDate,
     });
     setIsEditing(false);
+  };
+
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validar que las contraseñas coincidan
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('Las contraseñas no coinciden');
+      return;
+    }
+
+    // Validar longitud mínima
+    if (passwordData.newPassword.length < 8) {
+      toast.error('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await userService.changePassword(
+        passwordData.currentPassword,
+        passwordData.newPassword
+      );
+
+      toast.success('Contraseña actualizada correctamente');
+      setShowPasswordModal(false);
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error(error.message || 'Error al cambiar la contraseña');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -206,16 +294,16 @@ const MiPerfilPage = () => {
             </div>
           </div>
 
-          {/* Dirección */}
+          {/* Dirección y Datos Adicionales */}
           <div>
             <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
               <FiMapPin className="text-primary-600" />
-              <span>Dirección</span>
+              <span>Dirección y Datos Adicionales</span>
             </h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Dirección Completa
+                  Dirección en Rabinal, Baja Verapaz
                 </label>
                 <input
                   type="text"
@@ -224,46 +312,52 @@ const MiPerfilPage = () => {
                   onChange={handleChange}
                   disabled={!isEditing}
                   className="input-field"
-                  placeholder="Calle, número, zona, etc."
+                  placeholder="Ej: Barrio El Centro, frente al parque central"
                 />
+                <p className="text-xs text-neutral-500 mt-1">
+                  Indicar barrio, referencias o puntos conocidos
+                </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Ciudad
+                  <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center space-x-2">
+                    <FiCreditCard className="text-primary-600" />
+                    <span>DPI (opcional)</span>
                   </label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    disabled={!isEditing}
-                    className="input-field"
-                    placeholder="Ej: La Paz"
-                  />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="dpi"
+                      value={formData.dpi}
+                      onChange={handleChange}
+                      className="input-field"
+                      placeholder="1234567890101"
+                      maxLength={13}
+                    />
+                  ) : (
+                    <div className="input-field bg-neutral-50">
+                      {formData.dpi || 'No especificado'}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Departamento
+                  <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center space-x-2">
+                    <FiCalendar className="text-primary-600" />
+                    <span>Fecha de Nacimiento (opcional)</span>
                   </label>
-                  <select
-                    name="department"
-                    value={formData.department}
-                    onChange={handleChange}
-                    disabled={!isEditing}
-                    className="input-field"
-                  >
-                    <option value="">Seleccionar...</option>
-                    <option value="La Paz">La Paz</option>
-                    <option value="Santa Cruz">Santa Cruz</option>
-                    <option value="Cochabamba">Cochabamba</option>
-                    <option value="Oruro">Oruro</option>
-                    <option value="Potosí">Potosí</option>
-                    <option value="Tarija">Tarija</option>
-                    <option value="Chuquisaca">Chuquisaca</option>
-                    <option value="Beni">Beni</option>
-                    <option value="Pando">Pando</option>
-                  </select>
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      name="birthDate"
+                      value={formData.birthDate}
+                      onChange={handleChange}
+                      className="input-field"
+                    />
+                  ) : (
+                    <div className="input-field bg-neutral-50">
+                      {formatDisplayDate(formData.birthDate)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -293,44 +387,110 @@ const MiPerfilPage = () => {
         </form>
       </div>
 
-      {/* Información Adicional */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-card p-6">
-          <h3 className="font-semibold mb-4">Estadísticas de Cuenta</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-600">Miembro desde:</span>
-              <span className="font-semibold">
-                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-600">Tipo de cuenta:</span>
-              <span className="font-semibold capitalize">{user?.role || 'Cliente'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-600">Estado:</span>
-              <span className={`badge ${user?.isActive ? 'badge-success' : 'badge-danger'}`}>
-                {user?.isActive ? 'Activa' : 'Inactiva'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-card p-6">
-          <h3 className="font-semibold mb-4">Seguridad</h3>
-          <div className="space-y-3">
-            <button className="w-full text-left px-4 py-3 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors">
-              <p className="font-medium">Cambiar Contraseña</p>
-              <p className="text-sm text-neutral-600">Actualiza tu contraseña</p>
-            </button>
-            <button className="w-full text-left px-4 py-3 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors">
-              <p className="font-medium">Autenticación de Dos Factores</p>
-              <p className="text-sm text-neutral-600">Aumenta la seguridad de tu cuenta</p>
-            </button>
-          </div>
+      {/* Seguridad */}
+      <div className="bg-white rounded-xl shadow-card p-6">
+        <h3 className="font-semibold mb-4 flex items-center space-x-2">
+          <FiLock className="text-primary-600" />
+          <span>Seguridad</span>
+        </h3>
+        <div className="space-y-3">
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="w-full text-left px-4 py-3 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors"
+          >
+            <p className="font-medium flex items-center space-x-2">
+              <FiLock />
+              <span>Cambiar Contraseña</span>
+            </p>
+            <p className="text-sm text-neutral-600">Actualiza tu contraseña de forma segura</p>
+          </button>
         </div>
       </div>
+
+      {/* Modal de Cambio de Contraseña */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold flex items-center space-x-2">
+                  <FiLock className="text-primary-600" />
+                  <span>Cambiar Contraseña</span>
+                </h2>
+                <button
+                  onClick={() => setShowPasswordModal(false)}
+                  className="text-neutral-500 hover:text-neutral-700"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Contraseña Actual
+                </label>
+                <input
+                  type="password"
+                  name="currentPassword"
+                  value={passwordData.currentPassword}
+                  onChange={handlePasswordChange}
+                  className="input-field"
+                  required
+                  placeholder="Ingresa tu contraseña actual"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Nueva Contraseña
+                </label>
+                <input
+                  type="password"
+                  name="newPassword"
+                  value={passwordData.newPassword}
+                  onChange={handlePasswordChange}
+                  className="input-field"
+                  required
+                  minLength={8}
+                  placeholder="Mínimo 8 caracteres"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Confirmar Nueva Contraseña
+                </label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  value={passwordData.confirmPassword}
+                  onChange={handlePasswordChange}
+                  className="input-field"
+                  required
+                  minLength={8}
+                  placeholder="Repite la nueva contraseña"
+                />
+              </div>
+              <div className="flex items-center space-x-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary flex-1"
+                >
+                  {loading ? 'Actualizando...' : 'Cambiar Contraseña'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  disabled={loading}
+                  className="btn-outline flex-1"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
