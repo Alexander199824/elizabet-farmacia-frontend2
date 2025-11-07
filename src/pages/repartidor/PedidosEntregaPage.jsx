@@ -55,15 +55,14 @@ const PedidosEntregaPage = () => {
     try {
       console.log('🔍 Vista activa:', vistaActiva);
 
-      // CAMBIO IMPORTANTE: Ahora traemos TODOS los pedidos de tipo delivery
+      // CAMBIO IMPORTANTE: Ahora traemos TODOS los pedidos (delivery y pickup)
       // No importa el estado, se mostrarán todos
       const response = await orderService.getAllOrders({
-        deliveryType: 'delivery',
-        // No filtramos por estado, queremos ver TODOS
+        // No filtramos por deliveryType para ver tanto delivery como pickup
         limit: 100 // Aumentar si tienes más pedidos
       });
 
-      console.log('📦 Pedidos delivery cargados:', response);
+      console.log('📦 Pedidos cargados (delivery y pickup):', response);
       console.log('📊 Total de pedidos:', response.orders?.length);
 
       const allOrders = response.orders || [];
@@ -92,7 +91,7 @@ const PedidosEntregaPage = () => {
           inRoute: allOrders.filter(p => p.status === 'en_camino').length
         });
       } else {
-        // En "Mis Pedidos": Mostrar TODOS los pedidos delivery
+        // En "Mis Pedidos": Mostrar TODOS los pedidos (delivery y pickup)
         console.log('📋 Mostrando todos los pedidos en "Mis Pedidos":', allOrders.length);
 
         // Ordenar pedidos: los no entregados primero, luego los entregados
@@ -406,14 +405,14 @@ const PedidosEntregaPage = () => {
             }`}
           >
             <FiPackage />
-            <span>Todos los Pedidos Delivery ({misPedidos.length})</span>
+            <span>Todos los Pedidos ({misPedidos.length})</span>
           </button>
         </div>
         <div className="mt-3 text-xs text-neutral-600 text-center">
           {vistaActiva === 'disponibles' ? (
             <p>📦 Pedidos listos para que los recojas y entregues</p>
           ) : (
-            <p>👁️ Ver todos los pedidos delivery (solo editables cuando estén listos para envío)</p>
+            <p>👁️ Ver todos los pedidos (solo editables cuando estén listos para envío)</p>
           )}
         </div>
       </div>
