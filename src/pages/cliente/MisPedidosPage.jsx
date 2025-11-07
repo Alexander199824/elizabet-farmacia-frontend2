@@ -6,17 +6,21 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiPackage, FiClock, FiCheckCircle, FiXCircle, FiTruck, FiEye, FiRepeat, FiShoppingCart } from 'react-icons/fi';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { FiPackage, FiClock, FiCheckCircle, FiXCircle, FiTruck, FiEye, FiRepeat, FiShoppingCart, FiFileText, FiDownload, FiShoppingBag } from 'react-icons/fi';
+import orderService from '../../services/orderService';
 import invoiceService from '../../services/invoiceService';
+import receiptService from '../../services/receiptService';
 import productService from '../../services/productService';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
+import OrderTracking from '../../components/orders/OrderTracking';
 import toast from 'react-hot-toast';
 
 const MisPedidosPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { addToCart, toggleCart } = useCart();
   const [pedidos, setPedidos] = useState([]);
@@ -32,18 +36,63 @@ const MisPedidosPage = () => {
     }
   }, [user]);
 
+  // Detectar si viene de una navegación con un orderId específico
+  useEffect(() => {
+    if (location.state?.openOrderId && pedidos.length > 0) {
+      const order = pedidos.find(p => p.id === location.state.openOrderId);
+      if (order) {
+        handleViewDetails(order);
+        // Limpiar el state para evitar que se abra de nuevo
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state, pedidos]);
+
   const fetchPedidos = async () => {
     setLoading(true);
     try {
-      // Usar los parámetros correctos según la guía del backend
-      const params = {
-        clientId: user.id,
-        page: 1,
-        limit: 100
-      };
+      console.log('📦 Cargando pedidos del cliente...');
 
-      const response = await invoiceService.getAllInvoices(params);
-      setPedidos(response.invoices || []);
+      // ========== CARGAR AMBOS: ORDERS (online) E INVOICES (local) ==========
+      const [ordersResponse, invoicesResponse] = await Promise.all([
+        orderService.getMyOrders().catch(err => {
+          console.warn('Error al cargar orders:', err);
+          return { orders: [] };
+        }),
+        invoiceService.getAllInvoices({ clientId: user.id }).catch(err => {
+          console.warn('Error al cargar invoices:', err);
+          return { invoices: [] };
+        })
+      ]);
+
+      const onlineOrders = (ordersResponse.orders || []).map(order => ({
+        ...order,
+        type: 'order', // Marcar como pedido online
+        orderNumber: order.orderNumber || `ORD-${order.id}`
+      }));
+
+      const localInvoices = (invoicesResponse.invoices || []).map(invoice => ({
+        ...invoice,
+        type: 'invoice', // Marcar como venta local
+        orderNumber: invoice.invoiceNumber,
+        // Mapear campos para consistencia
+        createdAt: invoice.invoiceDate || invoice.createdAt
+      }));
+
+      // Combinar y ordenar por fecha (más recientes primero)
+      const allPedidos = [...onlineOrders, ...localInvoices].sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.invoiceDate);
+        const dateB = new Date(b.createdAt || b.invoiceDate);
+        return dateB - dateA;
+      });
+
+      console.log('✅ Pedidos cargados:', {
+        ordersOnline: onlineOrders.length,
+        invoicesLocal: localInvoices.length,
+        total: allPedidos.length
+      });
+
+      setPedidos(allPedidos);
     } catch (error) {
       console.error('Error fetching pedidos:', error);
       toast.error('Error al cargar los pedidos');
@@ -60,6 +109,48 @@ const MisPedidosPage = () => {
         bgColor: 'bg-warning-100',
         textColor: 'text-warning-700',
         icon: FiClock,
+      },
+      confirmado: {
+        label: 'Confirmado',
+        color: 'primary',
+        bgColor: 'bg-blue-100',
+        textColor: 'text-blue-700',
+        icon: FiCheckCircle,
+      },
+      en_preparacion: {
+        label: 'En Preparación',
+        color: 'primary',
+        bgColor: 'bg-purple-100',
+        textColor: 'text-purple-700',
+        icon: FiPackage,
+      },
+      listo_para_recoger: {
+        label: 'Listo para Recoger',
+        color: 'success',
+        bgColor: 'bg-green-100',
+        textColor: 'text-green-700',
+        icon: FiPackage,
+      },
+      en_camino: {
+        label: 'En Camino',
+        color: 'primary',
+        bgColor: 'bg-indigo-100',
+        textColor: 'text-indigo-700',
+        icon: FiTruck,
+      },
+      entregado: {
+        label: 'Entregado',
+        color: 'success',
+        bgColor: 'bg-success-100',
+        textColor: 'text-success-700',
+        icon: FiCheckCircle,
+      },
+      completado: {
+        label: 'Completado',
+        color: 'success',
+        bgColor: 'bg-success-100',
+        textColor: 'text-success-700',
+        icon: FiCheckCircle,
       },
       en_proceso: {
         label: 'En Proceso',
@@ -93,13 +184,96 @@ const MisPedidosPage = () => {
     return statusMap[status] || statusMap.pendiente;
   };
 
+  // Verificar si el pedido puede tener recibo
+  const puedeVerRecibo = (status) => {
+    return status === 'entregado' || status === 'completado';
+  };
+
+  // Descargar recibo de un pedido
+  const handleDownloadRecibo = async (pedido) => {
+    try {
+      toast.loading('Buscando recibo...', { id: 'download-receipt' });
+
+      console.log('🧾 Buscando recibo para pedido:', {
+        id: pedido.id,
+        type: pedido.type,
+        orderNumber: pedido.orderNumber,
+        invoiceId: pedido.invoiceId
+      });
+
+      // Usar el mismo método que MisRecibosPage para obtener todos los recibos con datos completos
+      const response = await receiptService.getClientReceipts(user.id, 100);
+      const allReceipts = response.receipts || [];
+
+      console.log('📋 Total de recibos encontrados:', allReceipts.length);
+
+      let receipt;
+
+      if (pedido.type === 'order') {
+        // Para pedidos online, buscar por invoiceId
+        if (!pedido.invoiceId) {
+          throw new Error('Este pedido aún no tiene factura asociada');
+        }
+        receipt = allReceipts.find(r => r.invoiceId === pedido.invoiceId);
+      } else {
+        // Para ventas locales (invoices), buscar por invoiceId
+        receipt = allReceipts.find(r => r.invoiceId === pedido.id);
+      }
+
+      if (!receipt) {
+        throw new Error('Recibo no encontrado. Es posible que aún no se haya generado.');
+      }
+
+      console.log('✅ Recibo encontrado:', {
+        id: receipt.id,
+        receiptNumber: receipt.receiptNumber,
+        hasInvoice: !!receipt.invoice,
+        hasItems: receipt.invoice?.items?.length || 0
+      });
+
+      // Validar que el recibo tenga los datos necesarios (igual que MisRecibosPage)
+      if (!receipt.invoice || !receipt.invoice.items || receipt.invoice.items.length === 0) {
+        throw new Error('Este recibo no tiene productos asociados y no puede generar PDF');
+      }
+
+      await receiptService.downloadReceiptPDF(receipt.id, `Recibo-${receipt.receiptNumber}.pdf`);
+
+      toast.success('Recibo descargado exitosamente', { id: 'download-receipt' });
+    } catch (error) {
+      console.error('❌ Error al descargar recibo:', error);
+      toast.error(
+        error.message || 'El recibo aún no está disponible. Se generará cuando el pedido sea entregado.',
+        { id: 'download-receipt' }
+      );
+    }
+  };
+
   const pedidosFiltrados = filtroEstado === 'todos'
     ? pedidos
+    : filtroEstado === 'pendiente'
+    ? pedidos.filter(p => ['pendiente', 'confirmado'].includes(p.status))
+    : filtroEstado === 'en_proceso'
+    ? pedidos.filter(p => ['en_preparacion', 'listo_para_recoger', 'en_camino'].includes(p.status))
+    : filtroEstado === 'entregado'
+    ? pedidos.filter(p => ['entregado', 'completado', 'completada'].includes(p.status))
     : pedidos.filter(p => p.status === filtroEstado);
 
   const handleViewDetails = async (pedido) => {
     try {
-      const details = await invoiceService.getInvoiceById(pedido.id);
+      console.log('🔍 Cargando detalles del pedido:', pedido.type, pedido.id);
+
+      let details;
+
+      if (pedido.type === 'order') {
+        // Pedido online - usar orderService
+        const response = await orderService.getOrderById(pedido.id);
+        details = { ...response.order, type: 'order' };
+      } else {
+        // Venta local - usar invoiceService
+        const response = await invoiceService.getInvoiceById(pedido.id);
+        details = { ...response.invoice, type: 'invoice' };
+      }
+
       setSelectedPedido(details);
       setShowModal(true);
     } catch (error) {
@@ -115,10 +289,18 @@ const MisPedidosPage = () => {
     const loadingToast = toast.loading('Verificando disponibilidad de productos...');
 
     try {
-      // Obtener detalles completos del pedido
-      const details = await invoiceService.getInvoiceById(pedido.id);
+      // Obtener detalles completos del pedido según su tipo
+      let pedidoData;
 
-      if (!details.items || details.items.length === 0) {
+      if (pedido.type === 'order') {
+        const details = await orderService.getOrderById(pedido.id);
+        pedidoData = details.order;
+      } else {
+        const details = await invoiceService.getInvoiceById(pedido.id);
+        pedidoData = details.invoice;
+      }
+
+      if (!pedidoData.items || pedidoData.items.length === 0) {
         toast.error('Este pedido no tiene productos', { id: loadingToast });
         return;
       }
@@ -128,7 +310,7 @@ const MisPedidosPage = () => {
       const unavailableProducts = [];
 
       // Verificar cada producto y su stock
-      for (const item of details.items) {
+      for (const item of pedidoData.items) {
         try {
           // Obtener información actualizada del producto
           const product = await productService.getProductById(item.product?.id || item.productId);
@@ -250,7 +432,7 @@ const MisPedidosPage = () => {
           }`}
         >
           <p className="text-2xl font-bold">
-            {pedidos.filter(p => p.status === 'pendiente').length}
+            {pedidos.filter(p => ['pendiente', 'confirmado'].includes(p.status)).length}
           </p>
           <p className="text-sm">Pendientes</p>
         </button>
@@ -263,22 +445,22 @@ const MisPedidosPage = () => {
           }`}
         >
           <p className="text-2xl font-bold">
-            {pedidos.filter(p => p.status === 'en_proceso').length}
+            {pedidos.filter(p => ['en_preparacion', 'listo_para_recoger', 'en_camino'].includes(p.status)).length}
           </p>
           <p className="text-sm">En Proceso</p>
         </button>
         <button
-          onClick={() => setFiltroEstado('completada')}
+          onClick={() => setFiltroEstado('entregado')}
           className={`p-4 rounded-xl text-center transition-all ${
-            filtroEstado === 'completada'
+            filtroEstado === 'entregado'
               ? 'bg-success-600 text-white shadow-lg'
               : 'bg-white hover:bg-neutral-50'
           }`}
         >
           <p className="text-2xl font-bold">
-            {pedidos.filter(p => p.status === 'completada').length}
+            {pedidos.filter(p => ['entregado', 'completado', 'completada'].includes(p.status)).length}
           </p>
-          <p className="text-sm">Completadas</p>
+          <p className="text-sm">Entregados</p>
         </button>
         <button
           onClick={() => setFiltroEstado('cancelada')}
@@ -315,11 +497,25 @@ const MisPedidosPage = () => {
                         <StatusIcon className={`text-2xl ${statusConfig.textColor}`} />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-neutral-900">
-                          Pedido {pedido.invoiceNumber}
-                        </h3>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-lg font-bold text-neutral-900">
+                            Pedido {pedido.orderNumber || pedido.invoiceNumber}
+                          </h3>
+                          {/* Badge para distinguir tipo */}
+                          {pedido.type === 'order' ? (
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center space-x-1">
+                              <FiShoppingCart className="text-xs" />
+                              <span>Online</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full flex items-center space-x-1">
+                              <FiShoppingBag className="text-xs" />
+                              <span>Tienda</span>
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-neutral-500">
-                          {formatDate(pedido.invoiceDate)}
+                          {formatDate(pedido.createdAt || pedido.invoiceDate)}
                         </p>
                       </div>
                       <span className={`badge badge-${statusConfig.color}`}>
@@ -357,7 +553,16 @@ const MisPedidosPage = () => {
                       <FiEye />
                       <span>Ver Detalles</span>
                     </button>
-                    {pedido.status === 'completada' && (
+                    {puedeVerRecibo(pedido.status) && (
+                      <button
+                        onClick={() => handleDownloadRecibo(pedido)}
+                        className="btn-success flex items-center justify-center space-x-2"
+                      >
+                        <FiDownload />
+                        <span>Recibo</span>
+                      </button>
+                    )}
+                    {(pedido.status === 'completada' || pedido.status === 'completado' || pedido.status === 'entregado') && (
                       <button
                         onClick={() => handleRepeatOrder(pedido)}
                         disabled={repeatingOrder}
@@ -385,95 +590,102 @@ const MisPedidosPage = () => {
         )}
       </div>
 
-      {/* Modal de Detalles */}
+      {/* Modal de Detalles con OrderTracking */}
       {showModal && selectedPedido && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    Pedido {selectedPedido.invoiceNumber}
-                  </h2>
-                  <p className="text-neutral-600">{formatDate(selectedPedido.invoiceDate)}</p>
-                </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-neutral-500 hover:text-neutral-700 text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="p-6 space-y-6">
-              {/* Estado */}
-              <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                <span className="text-neutral-600">Estado del Pedido:</span>
-                <span className={`badge badge-${getStatusConfig(selectedPedido.status).color}`}>
-                  {getStatusConfig(selectedPedido.status).label}
-                </span>
-              </div>
-
-              {/* Productos */}
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Productos:</h3>
-                <div className="space-y-3">
-                  {selectedPedido.items?.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <p className="font-semibold">{item.productName}</p>
-                        <p className="text-sm text-neutral-600">
-                          Cantidad: {item.quantity} x {formatCurrency(item.unitPrice)}
-                        </p>
-                      </div>
-                      <span className="font-bold text-lg">
-                        {formatCurrency(item.quantity * item.unitPrice)}
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Mostrar OrderTracking solo para pedidos online */}
+            {selectedPedido.type === 'order' ? (
+              <OrderTracking
+                orderId={selectedPedido.id}
+                onClose={() => setShowModal(false)}
+              />
+            ) : (
+              // Para ventas locales (invoices), mostrar detalles simples
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">Detalles de Compra</h2>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-medium rounded-full flex items-center space-x-1">
+                        <FiShoppingBag />
+                        <span>Compra en Tienda</span>
                       </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Resumen */}
-              <div className="border-t pt-4 space-y-2">
-                <div className="flex items-center justify-between text-neutral-700">
-                  <span>Subtotal:</span>
-                  <span className="font-semibold">{formatCurrency(selectedPedido.subtotal || selectedPedido.total)}</span>
-                </div>
-                {selectedPedido.discount > 0 && (
-                  <div className="flex items-center justify-between text-danger-600">
-                    <span>Descuento:</span>
-                    <span className="font-semibold">-{formatCurrency(selectedPedido.discount)}</span>
                   </div>
-                )}
-                <div className="flex items-center justify-between text-xl font-bold pt-2 border-t">
-                  <span>Total:</span>
-                  <span className="text-success-600">{formatCurrency(selectedPedido.total)}</span>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+                  >
+                    <FiXCircle className="text-2xl text-neutral-500" />
+                  </button>
                 </div>
-              </div>
 
-              {/* Info Adicional */}
-              <div className="p-4 bg-primary-50 rounded-lg space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-600">Método de Pago:</span>
-                  <span className="font-semibold capitalize">{selectedPedido.paymentMethod || 'Efectivo'}</span>
-                </div>
-                {selectedPedido.notes && (
-                  <div className="pt-2 border-t">
-                    <p className="text-neutral-600 mb-1">Notas:</p>
-                    <p className="font-medium">{selectedPedido.notes}</p>
+                {/* Info del pedido */}
+                <div className="bg-neutral-50 rounded-lg p-4 mb-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-neutral-600">Número de Factura</p>
+                      <p className="text-xl font-bold text-primary-600">{selectedPedido.invoiceNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-neutral-600">Fecha</p>
+                      <p className="font-semibold">{formatDate(selectedPedido.invoiceDate || selectedPedido.createdAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-neutral-600">Estado</p>
+                      <span className={`badge badge-${getStatusConfig(selectedPedido.status).color}`}>
+                        {getStatusConfig(selectedPedido.status).label}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-neutral-600">Total</p>
+                      <p className="text-2xl font-bold text-green-600">{formatCurrency(selectedPedido.total)}</p>
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
 
+                {/* Productos */}
+                <div className="mb-6">
+                  <h3 className="font-bold mb-4">Productos Comprados</h3>
+                  <div className="space-y-3">
+                    {(selectedPedido.items || []).map((item, idx) => {
+                      const productName = item.product?.name || item.productName || item.Product?.name || 'Producto';
+                      const unitPrice = parseFloat(item.unitPrice || item.price || 0);
+                      const quantity = parseInt(item.quantity || 1);
+                      const total = item.total ? parseFloat(item.total) : (quantity * unitPrice);
+
+                      return (
+                        <div key={item.id || idx} className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-semibold text-neutral-900">{productName}</p>
+                            <p className="text-sm text-neutral-600">
+                              Cantidad: {quantity} x {formatCurrency(unitPrice)}
+                            </p>
+                          </div>
+                          <span className="font-bold text-lg text-neutral-900">
+                            {formatCurrency(total)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Mensaje de recibo */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-800 flex items-center space-x-2">
+                    <FiCheckCircle />
+                    <span>Esta compra fue realizada en tienda y ya fue completada.</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Body adicional con botón repetir pedido */}
+            <div className="px-6 pb-6 space-y-6">
               {/* Botón Repetir Pedido en Modal */}
-              {selectedPedido.status === 'completada' && (
+              {(selectedPedido.status === 'completada' || selectedPedido.status === 'completado' || selectedPedido.status === 'entregado') && (
                 <div className="border-t pt-4">
                   <button
                     onClick={() => {

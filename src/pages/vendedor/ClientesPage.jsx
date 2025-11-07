@@ -24,6 +24,16 @@ const ClientesPage = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    dpi: '',
+    nit: '',
+    address: ''
+  });
 
   useEffect(() => {
     fetchClients();
@@ -94,6 +104,60 @@ const ClientesPage = () => {
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > pagination.totalPages) return;
     setPagination(prev => ({ ...prev, page: newPage }));
+  };
+
+  const handleOpenEditModal = (client) => {
+    setFormData({
+      firstName: client.firstName || '',
+      lastName: client.lastName || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      dpi: client.dpi || '',
+      nit: client.nit || '',
+      address: client.address || ''
+    });
+    setSelectedClient(client);
+    setShowEditModal(true);
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmitEdit = async (e) => {
+    e.preventDefault();
+
+    try {
+      // Validar campos requeridos
+      if (!formData.firstName || !formData.lastName || !formData.email) {
+        toast.error('Por favor completa todos los campos requeridos');
+        return;
+      }
+
+      const userData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        dpi: formData.dpi,
+        nit: formData.nit,
+        address: formData.address
+      };
+
+      await clientService.updateClient(selectedClient.id, userData);
+      toast.success('Cliente actualizado exitosamente');
+
+      setShowEditModal(false);
+      setShowModal(false);
+      fetchClients();
+    } catch (error) {
+      console.error('Error updating client:', error);
+      toast.error(error.message || 'Error al actualizar el cliente');
+    }
   };
 
   return (
@@ -359,7 +423,10 @@ const ClientesPage = () => {
 
               {/* Acciones */}
               <div className="pt-4 border-t flex items-center space-x-3">
-                <button className="btn-primary">
+                <button
+                  onClick={() => handleOpenEditModal(selectedClient)}
+                  className="btn-primary"
+                >
                   <FiEdit2 className="mr-2" />
                   Editar Cliente
                 </button>
@@ -373,6 +440,140 @@ const ClientesPage = () => {
                 </a>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edición */}
+      {showEditModal && selectedClient && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-xl font-semibold">
+                Editar Cliente
+              </h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-neutral-400 hover:text-neutral-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEdit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Nombre <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Apellido <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Teléfono
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    placeholder="12345678"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    DPI
+                  </label>
+                  <input
+                    type="text"
+                    name="dpi"
+                    value={formData.dpi}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    placeholder="1234567890101"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    NIT
+                  </label>
+                  <input
+                    type="text"
+                    name="nit"
+                    value={formData.nit}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    placeholder="12345678"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Dirección
+                  </label>
+                  <textarea
+                    name="address"
+                    value={formData.address}
+                    onChange={handleFormChange}
+                    className="input-field"
+                    rows="3"
+                    placeholder="Dirección completa"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="btn-outline"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

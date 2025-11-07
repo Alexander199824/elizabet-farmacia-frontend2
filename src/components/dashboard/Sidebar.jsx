@@ -7,12 +7,13 @@
  */
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  FiHome, FiPackage, FiShoppingCart, FiUsers, FiTruck, 
-  FiBarChart2, FiSettings, FiLogOut, FiFileText, FiBox,
-  FiDollarSign, FiCalendar, FiUser, FiActivity, FiLayers,
-  FiInbox
+import {
+  FiHome, FiPackage, FiShoppingCart, FiUsers, FiTruck,
+  FiBarChart2, FiLogOut, FiFileText, FiBox,
+  FiCalendar, FiUser, FiLayers,
+  FiInbox, FiShoppingBag
 } from 'react-icons/fi';
+import QuetzalIcon from '../common/QuetzalIcon';
 import { useAuth } from '../../context/AuthContext';
 import { FARMACIA_INFO, USER_ROLES } from '../../utils/constants';
 
@@ -32,16 +33,17 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/dashboard', icon: FiHome, label: 'Dashboard' },
       { path: '/dashboard/productos', icon: FiPackage, label: 'Productos' },
       { path: '/dashboard/ventas', icon: FiShoppingCart, label: 'Ventas' },
+      { path: '/dashboard/pedidos-online', icon: FiShoppingBag, label: 'Pedidos Online' },
+      { path: '/dashboard/entregas', icon: FiTruck, label: 'Entregas' },
       { path: '/dashboard/usuarios', icon: FiUsers, label: 'Usuarios' },
       { path: '/dashboard/inventario', icon: FiBox, label: 'Inventario' },
       { path: '/dashboard/proveedores', icon: FiLayers, label: 'Proveedores' },
-      { path: '/dashboard/auditoria', icon: FiActivity, label: 'Auditoría' },
       { path: '/dashboard/reportes', icon: FiBarChart2, label: 'Reportes' },
-      { path: '/dashboard/configuracion', icon: FiSettings, label: 'Configuración' },
     ],
     [USER_ROLES.VENDEDOR]: [
       { path: '/dashboard', icon: FiHome, label: 'Dashboard' },
       { path: '/dashboard/nueva-venta', icon: FiShoppingCart, label: 'Nueva Venta' },
+      { path: '/dashboard/pedidos-online', icon: FiShoppingBag, label: 'Pedidos Online' }, // ✅ NUEVO
       { path: '/dashboard/mis-ventas', icon: FiFileText, label: 'Mis Ventas' },
       { path: '/dashboard/productos', icon: FiPackage, label: 'Productos' },
       { path: '/dashboard/clientes', icon: FiUsers, label: 'Clientes' },
@@ -53,13 +55,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/dashboard/lotes', icon: FiInbox, label: 'Lotes' }, // ✅ MEJORADO
       { path: '/dashboard/inventario', icon: FiBox, label: 'Inventario' },
       { path: '/dashboard/proveedores', icon: FiLayers, label: 'Proveedores' },
-      { path: '/dashboard/entradas', icon: FiDollarSign, label: 'Entradas' },
+      { path: '/dashboard/entradas', icon: QuetzalIcon, label: 'Entradas' },
       { path: '/dashboard/alertas', icon: FiCalendar, label: 'Alertas Stock' },
     ],
     [USER_ROLES.REPARTIDOR]: [
       { path: '/dashboard', icon: FiHome, label: 'Dashboard' },
-      { path: '/dashboard/entregas', icon: FiTruck, label: 'Mis Entregas' },
-      { path: '/dashboard/ruta', icon: FiCalendar, label: 'Ruta del Día' },
+      { path: '/dashboard/entregas', icon: FiTruck, label: 'Pedidos de Entrega' }, // ✅ MEJORADO
       { path: '/dashboard/historial', icon: FiFileText, label: 'Historial' },
     ],
     [USER_ROLES.CLIENTE]: [

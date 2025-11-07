@@ -46,13 +46,11 @@ const ClienteDashboard = () => {
       const allOrders = ordersData.invoices || [];
       const completedOrders = allOrders.filter(o => o.status === 'completada');
       const pendingOrders = allOrders.filter(o => o.status === 'pendiente');
-      const totalSpent = allOrders.reduce((sum, order) => sum + order.total, 0);
 
       setStats({
         totalOrders: allOrders.length,
         completedOrders: completedOrders.length,
-        pendingOrders: pendingOrders.length,
-        totalSpent: totalSpent
+        pendingOrders: pendingOrders.length
       });
 
     } catch (error) {
@@ -75,7 +73,8 @@ const ClienteDashboard = () => {
   };
 
   const handleViewOrder = (orderId) => {
-    navigate(`/dashboard/pedidos/${orderId}`);
+    // Navegar a la página de pedidos con el ID para abrir el modal
+    navigate('/dashboard/pedidos', { state: { openOrderId: orderId } });
   };
 
   if (loading) {
@@ -99,7 +98,7 @@ const ClienteDashboard = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard
           title="Total Pedidos"
           value={stats?.totalOrders || 0}
@@ -120,13 +119,6 @@ const ClienteDashboard = () => {
           icon={FiCheckCircle}
           color="success"
           description="Entregados"
-        />
-        <StatCard
-          title="Total Gastado"
-          value={formatCurrency(stats?.totalSpent || 0)}
-          icon={FiFileText}
-          color="primary"
-          description="Histórico"
         />
       </div>
 

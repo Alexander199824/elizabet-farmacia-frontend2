@@ -1,95 +1,69 @@
 /**
  * @author Alexander Echeverria
  * @file RepartidorDashboard.jsx
- * @description Dashboard del repartidor con datos reales
+ * @description Dashboard del repartidor con datos reales del nuevo sistema de pedidos
  * @location /src/pages/repartidor/RepartidorDashboard.jsx
  */
 
 import { useState, useEffect } from 'react';
-import { FiTruck, FiPackage, FiCheckCircle, FiClock, FiMapPin, FiPhone } from 'react-icons/fi';
+import { FiTruck, FiPackage, FiCheckCircle, FiClock, FiCalendar } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import StatCard from '../../components/dashboard/StatCard';
-import deliveryService from '../../services/deliveryService';
-import invoiceService from '../../services/invoiceService';
+import QuetzalIcon from '../../components/common/QuetzalIcon';
+import orderService from '../../services/orderService';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 const RepartidorDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
-  const [todayDeliveries, setTodayDeliveries] = useState([]);
+  const [pedidosEnCamino, setPedidosEnCamino] = useState([]);
+  const [pedidosDisponibles, setPedidosDisponibles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      fetchDeliveryData();
+      fetchData();
     }
   }, [user]);
 
-  const fetchDeliveryData = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const today = new Date();
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      // Obtener estadísticas del día
+      const statsResponse = await orderService.getDeliveryPersonStats('today');
+      setStats(statsResponse.stats);
 
-      // Obtener estadísticas de entregas
-      const deliveryStats = await deliveryService.getDeliveryStats({
-        driverId: user.id,
-        startDate: startOfMonth.toISOString().split('T')[0]
+      // Obtener todos los pedidos delivery
+      const ordersResponse = await orderService.getAllOrders({
+        deliveryType: 'delivery',
+        limit: 100
       });
 
-      setStats(deliveryStats);
+      const allOrders = ordersResponse.orders || [];
 
-      // Obtener entregas del día
-      const todayData = await deliveryService.getTodayDeliveries();
-      
-      // Filtrar solo las entregas asignadas a este repartidor
-      const myDeliveries = todayData.deliveries?.filter(
-        d => d.driverId === user.id
-      ) || [];
+      // Filtrar pedidos en camino (asignados a este repartidor)
+      const enCamino = allOrders.filter(
+        (p) => p.status === 'en_camino' && p.deliveryPersonId === user.id
+      );
+      setPedidosEnCamino(enCamino);
 
-      setTodayDeliveries(myDeliveries);
+      // Filtrar pedidos disponibles para tomar
+      const disponibles = allOrders.filter(
+        (p) => p.status === 'listo_para_envio' && !p.deliveryPersonId
+      );
+      setPedidosDisponibles(disponibles);
 
     } catch (error) {
-      console.error('Error fetching delivery data:', error);
-      toast.error('Error al cargar datos de entregas');
+      console.error('Error al cargar datos:', error);
+      toast.error('Error al cargar datos');
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusInfo = (status) => {
-    const statusConfig = {
-      pendiente: { label: 'Pendiente', color: 'warning', icon: FiClock },
-      en_ruta: { label: 'En Ruta', color: 'primary', icon: FiTruck },
-      entregada: { label: 'Entregada', color: 'success', icon: FiCheckCircle },
-      cancelada: { label: 'Cancelada', color: 'danger', icon: FiClock },
-    };
-    return statusConfig[status] || statusConfig.pendiente;
-  };
-
-  const handleStartDelivery = async (deliveryId) => {
-    try {
-      await deliveryService.startDelivery(deliveryId);
-      toast.success('Entrega iniciada');
-      fetchDeliveryData();
-    } catch (error) {
-      toast.error('Error al iniciar entrega');
-    }
-  };
-
-  const handleMarkAsDelivered = async (deliveryId) => {
-    try {
-      await deliveryService.markAsDelivered(deliveryId, {
-        deliveredAt: new Date().toISOString(),
-        notes: 'Entrega completada exitosamente'
-      });
-      toast.success('Entrega marcada como completada');
-      fetchDeliveryData();
-    } catch (error) {
-      toast.error('Error al marcar entrega');
-    }
-  };
 
   if (loading) {
     return (
@@ -114,140 +88,135 @@ const RepartidorDashboard = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Entregas Hoy"
-          value={todayDeliveries.length}
-          icon={FiPackage}
-          color="primary"
-          description="Asignadas"
-        />
-        <StatCard
-          title="Completadas"
-          value={todayDeliveries.filter(d => d.status === 'entregada').length}
+          title="Entregados Hoy"
+          value={stats?.entregados || 0}
           icon={FiCheckCircle}
           color="success"
-          description="Hoy"
+          description="Completados"
         />
         <StatCard
-          title="Pendientes"
-          value={todayDeliveries.filter(d => d.status === 'pendiente').length}
-          icon={FiClock}
-          color="warning"
-          description="Por entregar"
-        />
-        <StatCard
-          title="Este Mes"
-          value={stats?.total || 0}
+          title="En Camino"
+          value={stats?.enCamino || 0}
           icon={FiTruck}
           color="primary"
-          description="Total entregas"
+          description="Actualmente"
+        />
+        <StatCard
+          title="Disponibles"
+          value={stats?.listosParaEnvio || 0}
+          icon={FiPackage}
+          color="warning"
+          description="Para tomar"
+        />
+        <StatCard
+          title="Total Recaudado"
+          value={`Q${parseFloat(stats?.totalRecaudado || 0).toFixed(2)}`}
+          icon={QuetzalIcon}
+          color="primary"
+          description="Hoy"
         />
       </div>
 
-      {/* Today's Deliveries */}
-      <div className="bg-white rounded-xl shadow-card overflow-hidden">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Entregas de Hoy</h3>
+      {/* Acciones Rápidas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Pedidos En Camino */}
+        <div
+          className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-card p-6 text-white cursor-pointer hover:shadow-xl transition-shadow"
+          onClick={() => navigate('/dashboard/entregas')}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">Mis Pedidos en Camino</h3>
+            <FiTruck className="text-4xl opacity-80" />
+          </div>
+          <p className="text-3xl font-bold mb-2">{pedidosEnCamino.length}</p>
+          <p className="text-primary-100">
+            {pedidosEnCamino.length === 0
+              ? 'No tienes pedidos en camino'
+              : 'pedidos por entregar'}
+          </p>
         </div>
-        <div className="divide-y">
-          {todayDeliveries.length > 0 ? (
-            todayDeliveries.map((delivery) => {
-              const statusInfo = getStatusInfo(delivery.status);
-              const StatusIcon = statusInfo.icon;
-              
-              return (
-                <div key={delivery.id} className="p-6 hover:bg-neutral-50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="font-semibold text-lg text-neutral-900">
-                          Pedido #{delivery.orderId || delivery.id}
-                        </span>
-                        <span className={`badge badge-${statusInfo.color} flex items-center space-x-1`}>
-                          <StatusIcon className="text-sm" />
-                          <span>{statusInfo.label}</span>
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center space-x-2 text-neutral-700">
-                          <FiPackage className="text-neutral-400" />
-                          <span className="font-medium">{delivery.customerName}</span>
-                        </div>
-                        <div className="flex items-center space-x-2 text-neutral-600">
-                          <FiMapPin className="text-neutral-400" />
-                          <span>{delivery.address}</span>
-                        </div>
-                        <div className="flex items-center space-x-2 text-neutral-600">
-                          <FiPhone className="text-neutral-400" />
-                          <span>{delivery.phone}</span>
-                        </div>
-                        {delivery.scheduledTime && (
-                          <div className="flex items-center space-x-2 text-neutral-600">
-                            <FiClock className="text-neutral-400" />
-                            <span>Horario: {delivery.scheduledTime}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="ml-4 flex flex-col space-y-2">
-                      {delivery.status === 'pendiente' && (
-                        <button
-                          onClick={() => handleStartDelivery(delivery.id)}
-                          className="btn-primary text-sm"
-                        >
-                          Iniciar Ruta
-                        </button>
-                      )}
-                      {delivery.status === 'en_ruta' && (
-                        <button
-                          onClick={() => handleMarkAsDelivered(delivery.id)}
-                          className="btn-success text-sm"
-                        >
-                          Marcar Entregado
-                        </button>
-                      )}
-                      <a 
-                        href={`tel:${delivery.phone}`}
-                        className="btn-outline text-sm text-center"
-                      >
-                        Llamar
-                      </a>
-                      {delivery.latitude && delivery.longitude && (
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${delivery.latitude},${delivery.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary-600 hover:text-primary-700 font-medium text-center"
-                        >
-                          Ver en Mapa
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="p-8 text-center text-neutral-500">
-              No tienes entregas asignadas para hoy
-            </div>
-          )}
+        {/* Pedidos Disponibles */}
+        <div
+          className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-card p-6 text-white cursor-pointer hover:shadow-xl transition-shadow"
+          onClick={() => navigate('/dashboard/entregas')}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-white">Disponibles para Tomar</h3>
+            <FiPackage className="text-4xl opacity-90 text-white" />
+          </div>
+          <p className="text-3xl font-bold mb-2 text-white">{pedidosDisponibles.length}</p>
+          <p className="text-orange-50">
+            {pedidosDisponibles.length === 0
+              ? 'No hay pedidos disponibles'
+              : 'pedidos listos para recoger'}
+          </p>
         </div>
       </div>
 
-      {/* Map Placeholder */}
-      <div className="bg-white rounded-xl shadow-card p-6">
-        <h3 className="text-lg font-semibold mb-4">Ruta del Día</h3>
-        <div className="bg-neutral-100 rounded-lg h-96 flex items-center justify-center">
-          <div className="text-center">
-            <FiMapPin className="text-6xl text-neutral-400 mx-auto mb-4" />
-            <p className="text-neutral-600">Mapa de ruta próximamente</p>
-            <p className="text-sm text-neutral-500 mt-2">
-              Aquí podrás ver la ruta optimizada de tus entregas
-            </p>
+      {/* Resumen del Día */}
+      <div className="bg-white rounded-xl shadow-card overflow-hidden">
+        <div className="p-6 border-b bg-gradient-to-r from-success-50 to-success-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-success-900">Resumen de Hoy</h3>
+              <p className="text-sm text-success-700 mt-1">
+                {new Date().toLocaleDateString('es-GT', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </p>
+            </div>
+            <FiCalendar className="text-3xl text-success-600" />
           </div>
         </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center p-4 bg-success-50 rounded-lg">
+              <FiCheckCircle className="text-4xl text-success-600 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-success-900">{stats?.entregados || 0}</p>
+              <p className="text-sm text-success-700">Pedidos Entregados</p>
+            </div>
+
+            <div className="text-center p-4 bg-primary-50 rounded-lg">
+              <QuetzalIcon className="text-4xl text-primary-600 mx-auto mb-2" size={48} />
+              <p className="text-2xl font-bold text-primary-900">
+                {formatCurrency(stats?.totalRecaudado || 0)}
+              </p>
+              <p className="text-sm text-primary-700">Total Recaudado</p>
+            </div>
+
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <FiClock className="text-4xl text-blue-600 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-blue-900">
+                {stats?.promedioTiempoEntrega || 0} min
+              </p>
+              <p className="text-sm text-blue-700">Tiempo Promedio</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Acciones */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          onClick={() => navigate('/dashboard/entregas')}
+          className="btn-primary py-4 text-lg flex items-center justify-center space-x-2"
+        >
+          <FiTruck />
+          <span>Ver Todas Mis Entregas</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/dashboard/historial')}
+          className="btn-outline py-4 text-lg flex items-center justify-center space-x-2"
+        >
+          <FiCalendar />
+          <span>Ver Historial Completo</span>
+        </button>
       </div>
     </div>
   );

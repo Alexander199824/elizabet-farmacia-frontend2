@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiShoppingCart, FiUser, FiMenu, FiX, FiLogOut, FiSearch } from 'react-icons/fi';
+import { FiShoppingCart, FiUser, FiMenu, FiX, FiLogOut } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { FARMACIA_INFO } from '../../utils/constants';
@@ -57,18 +57,6 @@ const Navbar = () => {
               <p className="text-xs text-neutral-500">Tu salud es primero</p>
             </div>
           </Link>
-
-          {/* Search bar - Desktop */}
-          <div className="hidden md:flex flex-1 max-w-2xl mx-8">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Buscar medicamentos..."
-                className="w-full pl-12 pr-4 py-3 border-2 border-neutral-200 rounded-lg focus:border-primary-500 focus:outline-none transition-colors"
-              />
-              <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-400 text-xl" />
-            </div>
-          </div>
 
           {/* Desktop menu */}
           <div className="hidden md:flex items-center space-x-4">
@@ -130,18 +118,6 @@ const Navbar = () => {
         {/* Mobile menu */}
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t animate-slide-down">
-            {/* Mobile search */}
-            <div className="mb-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Buscar medicamentos..."
-                  className="w-full pl-12 pr-4 py-3 border-2 border-neutral-200 rounded-lg focus:border-primary-500 focus:outline-none"
-                />
-                <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-400 text-xl" />
-              </div>
-            </div>
-
             {/* Mobile links */}
             <div className="space-y-2">
               <button

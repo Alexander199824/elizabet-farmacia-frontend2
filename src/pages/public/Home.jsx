@@ -28,7 +28,7 @@ const Home = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [filters, pagination.page]);
+  }, [filters, pagination.page, searchTerm]);
 
   const fetchProducts = async () => {
     setLoading(true);

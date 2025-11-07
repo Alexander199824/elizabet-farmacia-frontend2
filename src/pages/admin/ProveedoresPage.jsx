@@ -6,10 +6,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { 
-  FiSearch, FiPlus, FiEdit2, FiTrash2, FiEye, FiPhone, 
-  FiMail, FiMapPin, FiDollarSign, FiToggleLeft, FiToggleRight 
+import {
+  FiSearch, FiPlus, FiEdit2, FiTrash2, FiEye, FiPhone,
+  FiMail, FiMapPin, FiToggleLeft, FiToggleRight
 } from 'react-icons/fi';
+import QuetzalIcon from '../../components/common/QuetzalIcon';
 import supplierService from '../../services/supplierService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';

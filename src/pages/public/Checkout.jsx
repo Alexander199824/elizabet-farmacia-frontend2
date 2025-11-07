@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiShoppingBag, FiUser, FiMapPin, FiCreditCard, FiCheck } from 'react-icons/fi';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
-import invoiceService from '../../services/invoiceService';
+import orderService from '../../services/orderService';
 import { DELIVERY_ZONES, PAYMENT_METHODS } from '../../utils/constants';
 import { formatCurrency } from '../../utils/helpers';
 import toast from 'react-hot-toast';
@@ -71,45 +71,83 @@ const Checkout = () => {
     setLoading(true);
 
     try {
-      // Preparar datos del pedido según el formato del backend
-      const invoiceData = {
-        // Información del cliente - usar clientId si está logueado
-        clientId: user?.id || null, // ID del cliente autenticado
-        sellerId: 1, // Vendedor por defecto (admin o sistema)
+      // Preparar productos del pedido
+      const products = cart.map(item => ({
+        productId: item.id,
+        quantity: item.quantity,
+        unitPrice: item.price
+      }));
 
-        // Items del pedido (formato backend: productId, quantity, unitPrice)
-        items: cart.map(item => ({
-          productId: item.id,
-          quantity: item.quantity,
-          unitPrice: item.price, // El backend espera unitPrice, no price
-        })),
+      // Determinar tipo de entrega
+      const deliveryType = formData.deliveryZone === 'pickup' ? 'pickup' : 'delivery';
 
-        // Método de pago
-        paymentMethod: formData.paymentMethod, // 'efectivo', 'tarjeta', 'transferencia'
+      // Dirección de envío (solo si es delivery)
+      const shippingAddress = deliveryType === 'delivery'
+        ? `${formData.address}${formData.reference ? `\nReferencias: ${formData.reference}` : ''}`
+        : null;
 
-        // Descuentos e impuestos
-        discount: 0,
-        tax: 0, // Sistema local sin IVA
+      // Notas adicionales
+      const notes = formData.notes || '';
 
-        // Información adicional de entrega (como notas)
-        notes: formData.notes
-          ? `${formData.notes}\n\nEntrega: ${formData.deliveryZone}\nDirección: ${formData.address || 'Recoger en tienda'}\nReferencia: ${formData.reference || 'N/A'}\nTeléfono: ${formData.phone}`
-          : `Entrega: ${formData.deliveryZone}\nDirección: ${formData.address || 'Recoger en tienda'}\nReferencia: ${formData.reference || 'N/A'}\nNombre: ${formData.fullName}\nTeléfono: ${formData.phone}\nEmail: ${formData.email || 'N/A'}`,
-      };
+      let response;
 
-      console.log('Pedido a enviar:', invoiceData);
+      if (user) {
+        // ========== CLIENTE LOGUEADO ==========
+        console.log('🔐 Creando pedido como cliente logueado');
 
-      // Enviar pedido al backend
-      const response = await invoiceService.createInvoice(invoiceData);
+        const orderData = {
+          products,
+          deliveryType,
+          shippingAddress,
+          paymentMethod: formData.paymentMethod,
+          notes
+        };
+
+        response = await orderService.createOrder(orderData);
+      } else {
+        // ========== CLIENTE INVITADO (SIN LOGIN) ==========
+        console.log('👤 Creando pedido como invitado');
+
+        // Extraer nombre y apellido
+        const nameParts = formData.fullName.trim().split(' ');
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' ') || firstName;
+
+        const orderData = {
+          guestInfo: {
+            firstName,
+            lastName,
+            email: formData.email || '',
+            phone: formData.phone,
+            address: formData.address || 'N/A'
+          },
+          products,
+          deliveryType,
+          shippingAddress,
+          paymentMethod: formData.paymentMethod,
+          notes
+        };
+
+        console.log('📦 Datos del pedido invitado a enviar:', JSON.stringify(orderData, null, 2));
+        response = await orderService.createGuestOrder(orderData);
+      }
+
+      console.log('✅ Pedido creado exitosamente:', response);
+
+      // Guardar datos del pedido para tracking (invitados)
+      if (!user) {
+        localStorage.setItem('lastOrderNumber', response.order.orderNumber);
+        localStorage.setItem('lastOrderEmail', formData.email);
+      }
 
       toast.success('¡Pedido realizado con éxito! Te contactaremos pronto.');
       clearCart();
 
-      // Redirigir a la página de confirmación con los datos del pedido
+      // Redirigir a la página de confirmación
       navigate('/pedido-confirmado', {
         state: {
           orderData: {
-            orderNumber: response.invoiceNumber || response.id,
+            orderNumber: response.order.orderNumber,
             orderDate: new Date().toLocaleString('es-GT', {
               dateStyle: 'medium',
               timeStyle: 'short'
@@ -127,7 +165,12 @@ const Checkout = () => {
             },
             paymentMethod: formData.paymentMethod,
             notes: formData.notes,
-            items: cart,
+            items: cart.map(item => ({
+              productName: item.name,
+              quantity: item.quantity,
+              price: item.price,
+              subtotal: item.price * item.quantity
+            })),
             subtotal: subtotal,
             deliveryCost: deliveryCost,
             total: total,
@@ -136,7 +179,7 @@ const Checkout = () => {
       });
 
     } catch (error) {
-      console.error('Error al procesar el pedido:', error);
+      console.error('❌ Error al procesar el pedido:', error);
       toast.error(error.message || 'Error al procesar el pedido');
     } finally {
       setLoading(false);

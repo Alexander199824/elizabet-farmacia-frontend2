@@ -6,7 +6,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { FiFileText, FiDownload, FiEye, FiCalendar, FiDollarSign, FiPackage } from 'react-icons/fi';
+import { FiFileText, FiDownload, FiEye, FiCalendar, FiPackage } from 'react-icons/fi';
+import QuetzalIcon from '../../components/common/QuetzalIcon';
 import receiptService from '../../services/receiptService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
@@ -15,6 +16,7 @@ import toast from 'react-hot-toast';
 const MisRecibosPage = () => {
   const { user } = useAuth();
   const [recibos, setRecibos] = useState([]);
+  const [totales, setTotales] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedRecibo, setSelectedRecibo] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -31,6 +33,7 @@ const MisRecibosPage = () => {
       // Usar el servicio de recibos correcto según la guía del backend
       const response = await receiptService.getClientReceipts(user.id, 100);
       setRecibos(response.receipts || []);
+      setTotales(response.totals || null); // Obtener totales del backend
     } catch (error) {
       console.error('Error fetching recibos:', error);
       toast.error('Error al cargar los recibos');
@@ -60,14 +63,37 @@ const MisRecibosPage = () => {
     }
   };
 
+  const handleViewRecibo = async (recibo) => {
+    try {
+      // Validar que el recibo tenga los datos necesarios
+      if (!recibo.invoice || !recibo.invoice.items || recibo.invoice.items.length === 0) {
+        toast.error('Este recibo no tiene productos asociados y no puede generar PDF', { id: 'view-pdf' });
+        return;
+      }
+
+      toast.loading('Abriendo PDF...', { id: 'view-pdf' });
+      await receiptService.viewReceiptPDF(recibo.id);
+      toast.success('PDF abierto correctamente', { id: 'view-pdf' });
+    } catch (error) {
+      console.error('Error viewing recibo:', error);
+      toast.error(error.message || 'Error al abrir el PDF', { id: 'view-pdf' });
+    }
+  };
+
   const handleDownloadRecibo = async (recibo) => {
     try {
-      toast.loading('Generando PDF...', { id: 'download-pdf' });
+      // Validar que el recibo tenga los datos necesarios
+      if (!recibo.invoice || !recibo.invoice.items || recibo.invoice.items.length === 0) {
+        toast.error('Este recibo no tiene productos asociados y no puede generar PDF', { id: 'download-pdf' });
+        return;
+      }
+
+      toast.loading('Descargando PDF...', { id: 'download-pdf' });
       await receiptService.downloadReceiptPDF(recibo.id, `Recibo-${recibo.receiptNumber}.pdf`);
       toast.success('PDF descargado correctamente', { id: 'download-pdf' });
     } catch (error) {
       console.error('Error downloading recibo:', error);
-      toast.error('Error al descargar el PDF', { id: 'download-pdf' });
+      toast.error(error.message || 'Error al descargar el PDF', { id: 'download-pdf' });
     }
   };
 
@@ -104,19 +130,24 @@ const MisRecibosPage = () => {
             </div>
             <div>
               <p className="text-sm text-neutral-600">Total Recibos</p>
-              <p className="text-2xl font-bold">{recibos.length}</p>
+              <p className="text-2xl font-bold">
+                {totales ? totales.totalRecibos : recibos.length}
+              </p>
             </div>
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-card p-6">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-success-100 rounded-lg flex items-center justify-center">
-              <FiDollarSign className="text-2xl text-success-600" />
+              <QuetzalIcon className="text-2xl text-success-600" />
             </div>
             <div>
               <p className="text-sm text-neutral-600">Total Gastado</p>
               <p className="text-2xl font-bold">
-                {formatCurrency(recibos.reduce((sum, r) => sum + (r.amount || 0), 0))}
+                {totales
+                  ? formatCurrency(totales.totalGastado)
+                  : formatCurrency(recibos.reduce((sum, r) => sum + (r.amount || 0), 0))
+                }
               </p>
             </div>
           </div>
@@ -127,9 +158,9 @@ const MisRecibosPage = () => {
               <FiPackage className="text-2xl text-primary-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Emitidos</p>
+              <p className="text-sm text-neutral-600">Total Pedidos</p>
               <p className="text-2xl font-bold">
-                {recibos.filter(r => r.status === 'emitido').length}
+                {totales ? totales.totalPedidos : recibos.filter(r => r.status === 'emitido').length}
               </p>
             </div>
           </div>
@@ -192,18 +223,33 @@ const MisRecibosPage = () => {
                       <div className="flex items-center justify-end space-x-2">
                         <button
                           onClick={() => handleViewDetails(recibo)}
-                          className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                          className="p-2 text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
                           title="Ver detalles"
                         >
                           <FiEye className="text-lg" />
                         </button>
-                        <button
-                          onClick={() => handleDownloadRecibo(recibo)}
-                          className="p-2 text-success-600 hover:bg-success-50 rounded-lg transition-colors"
-                          title="Descargar PDF"
-                        >
-                          <FiDownload className="text-lg" />
-                        </button>
+                        {recibo.invoice?.items?.length > 0 ? (
+                          <>
+                            <button
+                              onClick={() => handleViewRecibo(recibo)}
+                              className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                              title="Ver PDF"
+                            >
+                              <FiFileText className="text-lg" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadRecibo(recibo)}
+                              className="p-2 text-success-600 hover:bg-success-50 rounded-lg transition-colors"
+                              title="Descargar PDF"
+                            >
+                              <FiDownload className="text-lg" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-neutral-400 px-2 py-1 bg-neutral-100 rounded" title="Este recibo no tiene suficientes datos para generar PDF">
+                            PDF no disponible
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -309,14 +355,29 @@ const MisRecibosPage = () => {
                 </div>
               )}
 
-              <div className="border-t pt-4 flex justify-end">
-                <button
-                  onClick={() => handleDownloadRecibo(selectedRecibo)}
-                  className="btn-primary flex items-center space-x-2"
-                >
-                  <FiDownload />
-                  <span>Descargar PDF</span>
-                </button>
+              <div className="border-t pt-4 flex justify-end gap-3">
+                {selectedRecibo.invoice?.items?.length > 0 ? (
+                  <>
+                    <button
+                      onClick={() => handleViewRecibo(selectedRecibo)}
+                      className="btn-outline flex items-center space-x-2"
+                    >
+                      <FiFileText />
+                      <span>Ver PDF</span>
+                    </button>
+                    <button
+                      onClick={() => handleDownloadRecibo(selectedRecibo)}
+                      className="btn-primary flex items-center space-x-2"
+                    >
+                      <FiDownload />
+                      <span>Descargar PDF</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-sm text-neutral-500 bg-neutral-100 px-4 py-2 rounded-lg">
+                    PDF no disponible - Este recibo no tiene los datos necesarios
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -7,10 +7,11 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   FiSearch, FiPlus, FiMinus, FiTrash2, FiUser, FiShoppingCart,
-  FiDollarSign, FiCreditCard, FiCheckCircle, FiX, FiPrinter
+  FiCreditCard, FiCheckCircle, FiX, FiPrinter
 } from 'react-icons/fi';
+import QuetzalIcon from '../../components/common/QuetzalIcon';
 import productService from '../../services/productService';
 import clientService from '../../services/clientService';
 import invoiceService from '../../services/invoiceService';
@@ -516,7 +517,7 @@ const NuevaVentaPage = () => {
                 className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 placeholder="0.00"
               />
-              <FiDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400" />
+              <QuetzalIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400" size={20} />
             </div>
           </div>
 

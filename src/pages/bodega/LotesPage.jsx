@@ -6,10 +6,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { 
+import {
   FiSearch, FiPlus, FiEdit2, FiTrash2, FiEye, FiPackage,
-  FiCalendar, FiMapPin, FiDollarSign, FiAlertCircle, FiLock
+  FiCalendar, FiMapPin, FiAlertCircle, FiLock
 } from 'react-icons/fi';
+import QuetzalIcon from '../../components/common/QuetzalIcon';
 import batchService from '../../services/batchService';
 import productService from '../../services/productService';
 import supplierService from '../../services/supplierService';

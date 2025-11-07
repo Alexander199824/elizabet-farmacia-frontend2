@@ -7,8 +7,9 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiDollarSign, FiShoppingCart, FiTrendingUp, FiPackage, FiPlus } from 'react-icons/fi';
+import { FiShoppingCart, FiTrendingUp, FiPackage, FiPlus, FiUsers } from 'react-icons/fi';
 import StatCard from '../../components/dashboard/StatCard';
+import QuetzalIcon from '../../components/common/QuetzalIcon';
 import invoiceService from '../../services/invoiceService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
@@ -122,7 +123,7 @@ const VendedorDashboard = () => {
         <StatCard
           title="Ventas del Mes"
           value={formatCurrency(stats?.totalRevenue || 0)}
-          icon={FiDollarSign}
+          icon={QuetzalIcon}
           color="success"
           description={`${stats?.total || 0} ventas`}
         />
@@ -258,7 +259,7 @@ const VendedorDashboard = () => {
           className="p-6 bg-white rounded-xl shadow-card hover:shadow-lg transition-shadow text-left group"
         >
           <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary-200 transition-colors">
-            <FiDollarSign className="text-2xl text-primary-600" />
+            <FiUsers className="text-2xl text-primary-600" />
           </div>
           <h3 className="font-semibold text-lg mb-2">Clientes</h3>
           <p className="text-sm text-neutral-600">Gestionar clientes</p>

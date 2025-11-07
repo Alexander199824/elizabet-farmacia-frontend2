@@ -25,6 +25,7 @@ import Login from './pages/public/Login';
 import Register from './pages/public/Register';
 import Checkout from './pages/public/Checkout';
 import OrderConfirmation from './pages/public/OrderConfirmation';
+import TrackOrder from './pages/public/TrackOrder';
 
 // Dashboard Pages por Rol
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -45,15 +46,19 @@ import VentasPage from './pages/admin/VentasPage';
 import UsuariosPage from './pages/admin/UsuariosPage';
 import InventarioPage from './pages/admin/InventarioPage';
 import ProveedoresPage from './pages/admin/ProveedoresPage';
-import AuditPage from './pages/admin/AuditPage';
 import ReportesPage from './pages/admin/ReportesPage';
 
 // PÁGINAS VENDEDOR
 import ClientesPage from './pages/vendedor/ClientesPage';
 import NuevaVentaPage from './pages/vendedor/NuevaVentaPage';
+import PedidosOnlinePage from './pages/vendedor/PedidosOnlinePage';
 
 // PÁGINAS BODEGA
 import LotesPage from './pages/bodega/LotesPage';
+
+// PÁGINAS REPARTIDOR
+import PedidosEntregaPage from './pages/repartidor/PedidosEntregaPage';
+import HistorialPedidosPage from './pages/repartidor/HistorialPedidosPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -136,6 +141,14 @@ function AppContent() {
             </PublicLayout>
           }
         />
+        <Route
+          path="/rastrear-pedido"
+          element={
+            <PublicLayout>
+              <TrackOrder />
+            </PublicLayout>
+          }
+        />
 
         {/* ========== DASHBOARD PRINCIPAL ========== */}
         <Route
@@ -207,36 +220,11 @@ function AppContent() {
         />
 
         <Route
-          path="/dashboard/auditoria"
-          element={
-            <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-              <DashboardLayout>
-                <AuditPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/dashboard/reportes"
           element={
             <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
               <DashboardLayout>
                 <ReportesPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard/configuracion"
-          element={
-            <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-              <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Configuración</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -271,6 +259,18 @@ function AppContent() {
             <ProtectedRoute allowedRoles={[USER_ROLES.VENDEDOR]}>
               <DashboardLayout>
                 <ClientesPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ✅ NUEVA RUTA: Pedidos Online */}
+        <Route
+          path="/dashboard/pedidos-online"
+          element={
+            <ProtectedRoute allowedRoles={[USER_ROLES.VENDEDOR, USER_ROLES.ADMIN]}>
+              <DashboardLayout>
+                <PedidosOnlinePage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -318,29 +318,13 @@ function AppContent() {
         />
 
         {/* ========== RUTAS DE REPARTIDOR ========== */}
+        {/* ✅ NUEVA RUTA: Pedidos de Entrega */}
         <Route
           path="/dashboard/entregas"
           element={
-            <ProtectedRoute allowedRoles={[USER_ROLES.REPARTIDOR]}>
+            <ProtectedRoute allowedRoles={[USER_ROLES.REPARTIDOR, USER_ROLES.ADMIN]}>
               <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Mis Entregas</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard/ruta"
-          element={
-            <ProtectedRoute allowedRoles={[USER_ROLES.REPARTIDOR]}>
-              <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Ruta del Día</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
+                <PedidosEntregaPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -349,12 +333,9 @@ function AppContent() {
         <Route
           path="/dashboard/historial"
           element={
-            <ProtectedRoute allowedRoles={[USER_ROLES.REPARTIDOR]}>
+            <ProtectedRoute allowedRoles={[USER_ROLES.REPARTIDOR, USER_ROLES.ADMIN]}>
               <DashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold">Historial de Entregas</h1>
-                  <p className="text-neutral-600 mt-2">Módulo en desarrollo...</p>
-                </div>
+                <HistorialPedidosPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
