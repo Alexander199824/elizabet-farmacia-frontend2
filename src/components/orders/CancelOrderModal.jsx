@@ -53,6 +53,16 @@ const CancelOrderModal = ({ isOpen, onClose, order, onConfirm }) => {
 
   if (!isOpen || !order) return null;
 
+  // Obtener el nombre del cliente de forma robusta
+  const clientName = order.client?.firstName && order.client?.lastName
+    ? `${order.client.firstName} ${order.client.lastName}`
+    : order.user?.firstName && order.user?.lastName
+    ? `${order.user.firstName} ${order.user.lastName}`
+    : 'Cliente';
+
+  // Convertir total a número de forma segura
+  const orderTotal = parseFloat(order.total) || 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -82,19 +92,19 @@ const CancelOrderModal = ({ isOpen, onClose, order, onConfirm }) => {
             <div className="flex items-center justify-between text-sm">
               <span className="text-neutral-600">Pedido:</span>
               <span className="font-bold text-neutral-900">
-                {order.orderNumber || `#${order.id}`}
+                {order.orderNumber || order.invoiceNumber || `#${order.id}`}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-neutral-600">Cliente:</span>
               <span className="font-medium text-neutral-900">
-                {order.client?.firstName} {order.client?.lastName}
+                {clientName}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-neutral-600">Total:</span>
               <span className="font-bold text-red-600">
-                Q{order.total?.toFixed(2)}
+                Q{orderTotal.toFixed(2)}
               </span>
             </div>
           </div>

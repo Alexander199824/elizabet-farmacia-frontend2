@@ -32,17 +32,65 @@ const ProveedoresPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [formData, setFormData] = useState({
+    code: '',
     name: '',
     contactName: '',
     email: '',
     phone: '',
+    alternativePhone: '',
     address: '',
     nit: '',
+    acceptsReturns: true,
+    returnPolicyMonthsBefore: 3,
+    returnPolicyMonthsAfter: '',
+    returnConditions: '',
     paymentTerms: '',
-    creditLimit: 0,
+    creditLimit: '',
     notes: ''
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [autoGenerateCode, setAutoGenerateCode] = useState(true);
+  const [showCodeInfo, setShowCodeInfo] = useState(false);
+
+  // Función para generar código de proveedor automáticamente
+  const generateSupplierCode = (data) => {
+    if (!data.name) return '';
+
+    let code = 'PROV';
+
+    // Obtener iniciales del nombre (máximo 4 letras)
+    const nameWords = data.name
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, '') // Eliminar caracteres especiales
+      .split(' ')
+      .filter(word => word.length > 0);
+
+    if (nameWords.length > 0) {
+      if (nameWords.length >= 2) {
+        // Si hay múltiples palabras: tomar primera letra de cada una (máx 4)
+        code += '-' + nameWords.slice(0, 4).map(w => w[0]).join('');
+      } else {
+        // Si es una palabra: tomar primeras 4 letras
+        code += '-' + nameWords[0].substring(0, 4);
+      }
+    }
+
+    // Agregar timestamp único (últimos 4 dígitos)
+    const timestamp = Date.now().toString().slice(-4);
+    code += '-' + timestamp;
+
+    return code;
+  };
+
+  // Generar código automáticamente cuando cambia el nombre
+  useEffect(() => {
+    if (autoGenerateCode && !isEditing && formData.name) {
+      const generatedCode = generateSupplierCode(formData);
+      if (generatedCode && generatedCode !== formData.code) {
+        setFormData(prev => ({ ...prev, code: generatedCode }));
+      }
+    }
+  }, [formData.name, autoGenerateCode, isEditing]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -107,52 +155,110 @@ const ProveedoresPage = () => {
   const handleOpenForm = (supplier = null) => {
     if (supplier) {
       setFormData({
+        code: supplier.code || '',
         name: supplier.name || '',
         contactName: supplier.contactName || '',
         email: supplier.email || '',
         phone: supplier.phone || '',
+        alternativePhone: supplier.alternativePhone || '',
         address: supplier.address || '',
         nit: supplier.nit || '',
+        acceptsReturns: supplier.acceptsReturns !== undefined ? supplier.acceptsReturns : true,
+        returnPolicyMonthsBefore: supplier.returnPolicyMonthsBefore || 3,
+        returnPolicyMonthsAfter: supplier.returnPolicyMonthsAfter || '',
+        returnConditions: supplier.returnConditions || '',
         paymentTerms: supplier.paymentTerms || '',
-        creditLimit: supplier.creditLimit || 0,
+        creditLimit: supplier.creditLimit || '',
         notes: supplier.notes || ''
       });
       setIsEditing(true);
       setSelectedSupplier(supplier);
+      setAutoGenerateCode(false); // Desactivar auto-generación en modo edición
     } else {
       setFormData({
+        code: '',
         name: '',
         contactName: '',
         email: '',
         phone: '',
+        alternativePhone: '',
         address: '',
         nit: '',
+        acceptsReturns: true,
+        returnPolicyMonthsBefore: 3,
+        returnPolicyMonthsAfter: '',
+        returnConditions: '',
         paymentTerms: '',
-        creditLimit: 0,
+        creditLimit: '',
         notes: ''
       });
       setIsEditing(false);
       setSelectedSupplier(null);
+      setAutoGenerateCode(true); // Activar auto-generación para nuevos proveedores
     }
     setShowFormModal(true);
   };
 
+  const handleToggleCodeMode = () => {
+    setAutoGenerateCode(!autoGenerateCode);
+    if (!autoGenerateCode && formData.name) {
+      // Si se activa el modo automático, generar código inmediatamente
+      const generatedCode = generateSupplierCode(formData);
+      if (generatedCode) {
+        setFormData(prev => ({ ...prev, code: generatedCode }));
+      }
+    }
+  };
+
   const handleSubmitForm = async (e) => {
     e.preventDefault();
-    
+
     try {
+      // Validaciones adicionales
+      if (!formData.code?.trim()) {
+        toast.error('El código del proveedor es obligatorio');
+        return;
+      }
+      if (!formData.name?.trim()) {
+        toast.error('El nombre del proveedor es obligatorio');
+        return;
+      }
+      if (!formData.email?.trim()) {
+        toast.error('El email es obligatorio');
+        return;
+      }
+      if (!formData.phone?.trim()) {
+        toast.error('El teléfono es obligatorio');
+        return;
+      }
+
+      // Preparar datos - convertir strings vacíos a números
+      const preparedData = {
+        ...formData,
+        creditLimit: formData.creditLimit === '' || formData.creditLimit === null ? 0 : parseFloat(formData.creditLimit) || 0,
+        returnPolicyMonthsAfter: formData.returnPolicyMonthsAfter === '' || formData.returnPolicyMonthsAfter === null ? 0 : parseInt(formData.returnPolicyMonthsAfter) || 0,
+        returnPolicyMonthsBefore: formData.returnPolicyMonthsBefore === '' || formData.returnPolicyMonthsBefore === null ? 3 : parseInt(formData.returnPolicyMonthsBefore) || 3
+      };
+
+      // Remover code si está editando
+      const dataToSend = isEditing
+        ? { ...preparedData, code: undefined }
+        : preparedData;
+
       if (isEditing && selectedSupplier) {
-        await supplierService.updateSupplier(selectedSupplier.id, formData);
+        await supplierService.updateSupplier(selectedSupplier.id, dataToSend);
         toast.success('Proveedor actualizado exitosamente');
       } else {
-        await supplierService.createSupplier(formData);
+        await supplierService.createSupplier(dataToSend);
         toast.success('Proveedor creado exitosamente');
       }
-      
+
       setShowFormModal(false);
       fetchSuppliers();
     } catch (error) {
-      toast.error(error.message || 'Error al guardar proveedor');
+      console.error('Error al guardar proveedor:', error);
+      const errorMessage = error?.message || error?.error || 'Error al guardar proveedor';
+      toast.error(errorMessage);
     }
   };
 
@@ -265,6 +371,9 @@ const ProveedoresPage = () => {
             <thead className="bg-neutral-50 border-b">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
+                  Código
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
                   Proveedor
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
@@ -290,7 +399,7 @@ const ProveedoresPage = () => {
             <tbody className="divide-y divide-neutral-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center">
+                  <td colSpan="8" className="px-6 py-8 text-center">
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
                     </div>
@@ -299,6 +408,11 @@ const ProveedoresPage = () => {
               ) : suppliers.length > 0 ? (
                 suppliers.map((supplier) => (
                   <tr key={supplier.id} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="font-mono text-sm font-semibold text-primary-600">
+                        {supplier.code}
+                      </p>
+                    </td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-neutral-900">{supplier.name}</p>
                       <p className="text-sm text-neutral-500">{supplier.email}</p>
@@ -360,7 +474,7 @@ const ProveedoresPage = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-neutral-500">
+                  <td colSpan="8" className="px-6 py-8 text-center text-neutral-500">
                     No se encontraron proveedores
                   </td>
                 </tr>
@@ -416,7 +530,86 @@ const ProveedoresPage = () => {
             
             <form onSubmit={handleSubmitForm} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-neutral-700">
+                      Código del Proveedor *
+                    </label>
+                    {!isEditing && (
+                      <div className="flex items-center space-x-3">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={autoGenerateCode}
+                            onChange={handleToggleCodeMode}
+                            className="w-4 h-4 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="text-xs text-neutral-600">Auto-generar</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowCodeInfo(!showCodeInfo)}
+                          className="text-primary-600 hover:text-primary-700 text-xs underline"
+                        >
+                          ¿Cómo funciona?
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={formData.code}
+                    onChange={(e) => setFormData({...formData, code: e.target.value})}
+                    disabled={isEditing || (autoGenerateCode && !isEditing)}
+                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 ${
+                      (isEditing || autoGenerateCode) ? 'bg-neutral-100 cursor-not-allowed' : ''
+                    }`}
+                    placeholder={autoGenerateCode && !isEditing ? 'Se generará automáticamente...' : 'PROV-ABC-1234'}
+                  />
+                  {isEditing && (
+                    <p className="text-xs text-neutral-500 mt-1">
+                      El código no se puede modificar
+                    </p>
+                  )}
+                  {!isEditing && autoGenerateCode && formData.name && (
+                    <p className="text-xs text-success-600 mt-1">
+                      ✓ Código generado automáticamente
+                    </p>
+                  )}
+                </div>
+
+                {/* Panel informativo - ocupa toda la fila */}
+                {showCodeInfo && !isEditing && (
+                  <div className="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                    <h5 className="font-semibold text-blue-900 mb-2">
+                      ¿Cómo se genera el código automáticamente?
+                    </h5>
+                    <div className="space-y-2 text-blue-800">
+                      <div>
+                        <span className="font-medium">1. Prefijo fijo:</span>
+                        <p className="ml-4">• PROV (Proveedor)</p>
+                      </div>
+                      <div>
+                        <span className="font-medium">2. Iniciales del nombre:</span>
+                        <p className="ml-4">• Si hay múltiples palabras: primera letra de cada una (máx 4)</p>
+                        <p className="ml-4">• Si es una palabra: primeras 4 letras</p>
+                      </div>
+                      <div>
+                        <span className="font-medium">3. Código único:</span>
+                        <p className="ml-4">• Timestamp de 4 dígitos</p>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-blue-300">
+                        <span className="font-medium">Ejemplos:</span>
+                        <p className="ml-4">• "Farmacéutica ABC" → PROV-FABC-1234</p>
+                        <p className="ml-4">• "Distribuidora Guatemala" → PROV-DG-5678</p>
+                        <p className="ml-4">• "Laboratorios" → PROV-LABO-9012</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Nombre del Proveedor *
                   </label>
@@ -458,10 +651,11 @@ const ProveedoresPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Email
+                    Email *
                   </label>
                   <input
                     type="email"
+                    required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
@@ -471,14 +665,28 @@ const ProveedoresPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Teléfono
+                    Teléfono *
                   </label>
                   <input
                     type="tel"
+                    required
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="1234-5678"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Teléfono Alternativo
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.alternativePhone}
+                    onChange={(e) => setFormData({...formData, alternativePhone: e.target.value})}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="5678-9012"
                   />
                 </div>
 
@@ -517,9 +725,71 @@ const ProveedoresPage = () => {
                     step="0.01"
                     min="0"
                     value={formData.creditLimit}
-                    onChange={(e) => setFormData({...formData, creditLimit: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({...formData, creditLimit: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     placeholder="0.00"
+                  />
+                </div>
+
+                {/* Políticas de Devolución */}
+                <div className="col-span-2 pt-4 border-t">
+                  <h4 className="text-md font-semibold text-neutral-800 mb-4">
+                    Políticas de Devolución
+                  </h4>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.acceptsReturns}
+                      onChange={(e) => setFormData({...formData, acceptsReturns: e.target.checked})}
+                      className="w-4 h-4 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="text-sm font-medium text-neutral-700">
+                      Acepta devoluciones
+                    </span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Meses antes de vencimiento
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.returnPolicyMonthsBefore}
+                    onChange={(e) => setFormData({...formData, returnPolicyMonthsBefore: e.target.value})}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="3"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Meses después de vencimiento
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.returnPolicyMonthsAfter}
+                    onChange={(e) => setFormData({...formData, returnPolicyMonthsAfter: e.target.value})}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Condiciones de Devolución
+                  </label>
+                  <textarea
+                    value={formData.returnConditions}
+                    onChange={(e) => setFormData({...formData, returnConditions: e.target.value})}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    rows="2"
+                    placeholder="Productos en buen estado, empaque original..."
                   />
                 </div>
 
@@ -572,7 +842,14 @@ const ProveedoresPage = () => {
             
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+                <div>
+                  <p className="text-sm text-neutral-600">Código</p>
+                  <p className="text-lg font-mono font-semibold text-primary-600">
+                    {selectedSupplier.code}
+                  </p>
+                </div>
+
+                <div>
                   <p className="text-sm text-neutral-600">Nombre</p>
                   <p className="text-lg font-semibold">{selectedSupplier.name}</p>
                 </div>

@@ -12,6 +12,8 @@ import productService from '../../services/productService';
 import clientService from '../../services/clientService';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 // Métodos de pago
 const PAYMENT_METHODS = [
@@ -58,6 +60,13 @@ const VentasPage = () => {
   const [clients, setClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
+
+  // Estados para exportar PDF
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDates, setExportDates] = useState({
+    startDate: '',
+    endDate: ''
+  });
 
   useEffect(() => {
     fetchSales();
@@ -322,7 +331,7 @@ const VentasPage = () => {
 
       toast.success('¡Venta creada exitosamente!');
       toast.success(`Recibo: ${response.invoice.invoiceNumber}`);
-      
+
       // Resetear formulario
       setNewSale({
         clientType: 'final',
@@ -334,7 +343,7 @@ const VentasPage = () => {
         discount: 0,
         notes: ''
       });
-      
+
       setShowCreateModal(false);
       fetchSales();
       fetchStats();
@@ -344,6 +353,132 @@ const VentasPage = () => {
     } finally {
       setCreatingInvoice(false);
     }
+  };
+
+  // ============= FUNCIONES PARA EXPORTAR PDF =============
+
+  const filterSalesByDate = (salesToFilter) => {
+    if (!exportDates.startDate && !exportDates.endDate) {
+      return salesToFilter;
+    }
+
+    return salesToFilter.filter(sale => {
+      const saleDate = new Date(sale.invoiceDate);
+      const start = exportDates.startDate ? new Date(exportDates.startDate) : null;
+      const end = exportDates.endDate ? new Date(exportDates.endDate) : null;
+
+      if (start && end) {
+        return saleDate >= start && saleDate <= end;
+      } else if (start) {
+        return saleDate >= start;
+      } else if (end) {
+        return saleDate <= end;
+      }
+      return true;
+    });
+  };
+
+  const generatePDF = () => {
+    const filteredSales = filterSalesByDate(sales);
+
+    if (filteredSales.length === 0) {
+      toast.error('No hay ventas en el periodo seleccionado');
+      return;
+    }
+
+    const doc = new jsPDF();
+
+    // Título
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Reporte de Ventas', 14, 20);
+
+    // Fecha del reporte
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-GT')} ${new Date().toLocaleTimeString('es-GT')}`, 14, 28);
+
+    // Periodo
+    if (exportDates.startDate || exportDates.endDate) {
+      const startText = exportDates.startDate ? new Date(exportDates.startDate).toLocaleDateString('es-GT') : 'Inicio';
+      const endText = exportDates.endDate ? new Date(exportDates.endDate).toLocaleDateString('es-GT') : 'Actualidad';
+      doc.text(`Periodo: ${startText} - ${endText}`, 14, 34);
+    }
+
+    // Estadísticas generales
+    const totalVentas = filteredSales.length;
+    const totalIngresos = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.total || 0), 0);
+    const promedioTicket = totalVentas > 0 ? totalIngresos / totalVentas : 0;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Resumen:', 14, 44);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de Ventas: ${totalVentas}`, 14, 50);
+    doc.text(`Ingresos Totales: ${formatCurrency(totalIngresos)}`, 14, 56);
+    doc.text(`Ticket Promedio: ${formatCurrency(promedioTicket)}`, 14, 62);
+
+    // Tabla de ventas
+    const tableData = filteredSales.map(sale => [
+      sale.invoiceNumber,
+      formatDate(sale.invoiceDate),
+      sale.client ? `${sale.client.firstName} ${sale.client.lastName}` : sale.clientName || 'CF',
+      sale.seller ? `${sale.seller.firstName} ${sale.seller.lastName}` : 'N/A',
+      formatCurrency(sale.total),
+      sale.paymentMethod,
+      sale.status
+    ]);
+
+    doc.autoTable({
+      startY: 70,
+      head: [['Recibo', 'Fecha', 'Cliente', 'Vendedor', 'Total', 'Pago', 'Estado']],
+      body: tableData,
+      styles: {
+        fontSize: 8,
+        cellPadding: 3
+      },
+      headStyles: {
+        fillColor: [59, 130, 246],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250]
+      },
+      columnStyles: {
+        4: { halign: 'right', fontStyle: 'bold' }, // Total
+        6: { halign: 'center' } // Estado
+      }
+    });
+
+    // Footer con totales
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL GENERAL: ${formatCurrency(totalIngresos)}`, 14, finalY);
+
+    // Pie de página
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(150);
+      doc.text(
+        `Farmacia Elizabeth - Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.width / 2,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+    }
+
+    // Guardar PDF
+    const fileName = `ventas_${exportDates.startDate || 'todas'}_${exportDates.endDate || 'ahora'}.pdf`;
+    doc.save(fileName);
+
+    toast.success('PDF generado exitosamente');
+    setShowExportModal(false);
   };
 
   return (
@@ -366,7 +501,10 @@ const VentasPage = () => {
             <FiPlus />
             <span>Nueva Venta</span>
           </button>
-          <button className="border border-neutral-300 hover:bg-neutral-50 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="border border-neutral-300 hover:bg-neutral-50 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+          >
             <FiDownload />
             <span>Exportar</span>
           </button>
@@ -969,6 +1107,89 @@ const VentasPage = () => {
                   <span>TOTAL:</span>
                   <span>{formatCurrency(selectedSale.total)}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Exportar PDF */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FiDownload className="text-primary-600 text-xl" />
+                <h3 className="text-xl font-semibold">Exportar Ventas a PDF</h3>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-neutral-400 hover:text-neutral-600 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-neutral-600 text-sm">
+                Selecciona el rango de fechas para filtrar las ventas a exportar.
+                Si no seleccionas ninguna fecha, se exportarán todas las ventas visibles.
+              </p>
+
+              {/* Selector de Fechas */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Fecha Inicio
+                  </label>
+                  <input
+                    type="date"
+                    value={exportDates.startDate}
+                    onChange={(e) => setExportDates({ ...exportDates, startDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Fecha Fin
+                  </label>
+                  <input
+                    type="date"
+                    value={exportDates.endDate}
+                    onChange={(e) => setExportDates({ ...exportDates, endDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+
+              {/* Preview de resultados */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 font-medium mb-1">Vista previa:</p>
+                <p className="text-sm text-blue-700">
+                  {(() => {
+                    const filtered = filterSalesByDate(sales);
+                    const total = filtered.reduce((sum, sale) => sum + parseFloat(sale.total || 0), 0);
+                    return `${filtered.length} venta(s) • Total: ${formatCurrency(total)}`;
+                  })()}
+                </p>
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="flex-1 border border-neutral-300 hover:bg-neutral-50 px-4 py-2 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={generatePDF}
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  <FiDownload />
+                  Generar PDF
+                </button>
               </div>
             </div>
           </div>

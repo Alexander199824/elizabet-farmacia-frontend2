@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FiPackage, FiClock, FiCheckCircle, FiXCircle, FiTruck, FiEye, FiRepeat, FiShoppingCart, FiFileText, FiDownload, FiShoppingBag } from 'react-icons/fi';
+import { FiPackage, FiClock, FiCheckCircle, FiXCircle, FiTruck, FiEye, FiRepeat, FiShoppingCart, FiFileText, FiDownload, FiShoppingBag, FiX } from 'react-icons/fi';
 import orderService from '../../services/orderService';
 import invoiceService from '../../services/invoiceService';
 import receiptService from '../../services/receiptService';
@@ -16,7 +16,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import OrderTracking from '../../components/orders/OrderTracking';
+import CancelOrderModal from '../../components/orders/CancelOrderModal';
 import toast from 'react-hot-toast';
+import { useOrderNotifications } from '../../hooks/useOrderNotifications';
 
 const MisPedidosPage = () => {
   const navigate = useNavigate();
@@ -29,6 +31,13 @@ const MisPedidosPage = () => {
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [repeatingOrder, setRepeatingOrder] = useState(false);
+
+  // Estados para el modal de cancelación
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [pedidoToCancel, setPedidoToCancel] = useState(null);
+
+  // Hook para notificaciones automáticas de pedidos
+  useOrderNotifications(pedidos);
 
   useEffect(() => {
     if (user) {
@@ -377,6 +386,37 @@ const MisPedidosPage = () => {
     navigate('/dashboard/compras');
   };
 
+  // Función para abrir modal de cancelación
+  const openCancelModal = (pedido) => {
+    setPedidoToCancel(pedido);
+    setCancelModalOpen(true);
+  };
+
+  // Función para confirmar cancelación
+  const handleCancelOrder = async (reason) => {
+    try {
+      console.log('📤 Enviando cancelación:', { orderId: pedidoToCancel.id, reason });
+      await orderService.cancelOrder(pedidoToCancel.id, reason);
+      toast.success('✅ Pedido cancelado correctamente');
+      fetchPedidos(); // Recargar lista de pedidos
+    } catch (error) {
+      console.error('❌ Error al cancelar pedido:', error);
+      // El error ya viene formateado desde el servicio
+      toast.error(error.message || 'Error al cancelar pedido');
+      throw error; // Para que el modal pueda manejar el error y mantener abierto
+    }
+  };
+
+  // Función para verificar si un pedido puede ser cancelado
+  const puedeCancelar = (pedido) => {
+    // Solo pedidos online pueden ser cancelados desde esta página
+    if (pedido.type !== 'order') return false;
+
+    // No se puede cancelar si ya está entregado, completado o cancelado
+    const estadosNoCancelables = ['entregado', 'completado', 'cancelado', 'anulada'];
+    return !estadosNoCancelables.includes(pedido.status);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -553,6 +593,16 @@ const MisPedidosPage = () => {
                       <FiEye />
                       <span>Ver Detalles</span>
                     </button>
+                    {puedeCancelar(pedido) && (
+                      <button
+                        onClick={() => openCancelModal(pedido)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors"
+                        title="Cancelar pedido"
+                      >
+                        <FiX />
+                        <span>Cancelar</span>
+                      </button>
+                    )}
                     {puedeVerRecibo(pedido.status) && (
                       <button
                         onClick={() => handleDownloadRecibo(pedido)}
@@ -707,6 +757,17 @@ const MisPedidosPage = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Cancelación */}
+      <CancelOrderModal
+        isOpen={cancelModalOpen}
+        onClose={() => {
+          setCancelModalOpen(false);
+          setPedidoToCancel(null);
+        }}
+        order={pedidoToCancel}
+        onConfirm={handleCancelOrder}
+      />
     </div>
   );
 };

@@ -5,8 +5,9 @@
  * @location /src/components/dashboard/DashboardHeader.jsx
  */
 
-import { FiMenu, FiBell, FiSearch } from 'react-icons/fi';
+import { FiMenu, FiSearch } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../notifications/NotificationBell';
 
 const DashboardHeader = ({ toggleSidebar }) => {
   const { user } = useAuth();
@@ -37,10 +38,7 @@ const DashboardHeader = ({ toggleSidebar }) => {
       {/* Right: Notifications + User */}
       <div className="flex items-center space-x-4">
         {/* Notifications */}
-        <button className="relative p-2 hover:bg-neutral-100 rounded-lg transition-colors">
-          <FiBell className="text-xl text-neutral-700" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full" />
-        </button>
+        <NotificationBell />
 
         {/* User info */}
         <div className="hidden sm:flex items-center space-x-3">

@@ -27,6 +27,7 @@ import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import CancelOrderModal from '../../components/orders/CancelOrderModal';
+import { useOrderNotifications } from '../../hooks/useOrderNotifications';
 
 const PedidosOnlinePage = () => {
   const { user } = useAuth();
@@ -39,6 +40,9 @@ const PedidosOnlinePage = () => {
   // Estado para el modal de cancelación
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [pedidoToCancel, setPedidoToCancel] = useState(null);
+
+  // Hook para notificaciones automáticas de pedidos
+  useOrderNotifications(pedidos);
 
   useEffect(() => {
     cargarPedidos();
@@ -217,13 +221,15 @@ const PedidosOnlinePage = () => {
   // Función para confirmar cancelación
   const handleCancelOrder = async (reason) => {
     try {
+      console.log('📤 Enviando cancelación:', { orderId: pedidoToCancel.id, reason });
       await orderService.cancelOrder(pedidoToCancel.id, reason);
-      toast.success('❌ Pedido cancelado correctamente');
-      cargarPedidos();
+      toast.success('✅ Pedido cancelado correctamente');
+      cargarPedidos(); // Recargar lista de pedidos
     } catch (error) {
-      console.error('Error al cancelar pedido:', error);
+      console.error('❌ Error al cancelar pedido:', error);
+      // El error ya viene formateado desde el servicio
       toast.error(error.message || 'Error al cancelar pedido');
-      throw error; // Para que el modal pueda manejar el error
+      throw error; // Para que el modal pueda manejar el error y mantener abierto
     }
   };
 

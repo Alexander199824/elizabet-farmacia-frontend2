@@ -179,6 +179,50 @@ const reportService = {
     }
   },
 
+  // ==================== REPORTES AVANZADOS ====================
+
+  /**
+   * Análisis económico avanzado
+   * @param {Object} params - { startDate, endDate }
+   */
+  getEconomicAnalysis: async (params = {}) => {
+    try {
+      const response = await api.get('/reports/economic-analysis', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener análisis económico:', error);
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Mejores días de venta
+   * @param {Object} params - { startDate, endDate }
+   */
+  getBestSalesDays: async (params = {}) => {
+    try {
+      const response = await api.get('/reports/best-sales-days', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener mejores días de venta:', error);
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Análisis por períodos de tiempo (nuevo endpoint detallado)
+   * @param {Object} params - { startDate, endDate }
+   */
+  getTimePeriodAnalysis: async (params = {}) => {
+    try {
+      const response = await api.get('/reports/time-period-analysis', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener análisis por períodos:', error);
+      throw error.response?.data || error.message;
+    }
+  },
+
   // ==================== MANTENER COMPATIBILIDAD CON CÓDIGO EXISTENTE ====================
 
   /**
@@ -243,31 +287,37 @@ const reportService = {
   // ==================== EXPORTACIÓN ====================
 
   /**
-   * Exportar reporte a PDF (mantener compatibilidad)
+   * Exportar reporte a PDF
+   * @param {string} reportType - 'sales', 'economic-analysis', 'best-sales-days', etc.
+   * @param {Object} params - Parámetros adicionales (startDate, endDate, groupBy, etc.)
    */
   exportToPDF: async (reportType, params = {}) => {
     try {
-      const response = await api.get(`/reports/export/pdf/${reportType}`, {
-        params,
+      const response = await api.get(`/reports/download/${reportType}`, {
+        params: { ...params, format: 'pdf' },
         responseType: 'blob'
       });
       return response.data;
     } catch (error) {
+      console.error('Error al exportar a PDF:', error);
       throw error.response?.data || error.message;
     }
   },
 
   /**
-   * Exportar reporte a Excel (mantener compatibilidad)
+   * Exportar reporte a Excel
+   * @param {string} reportType - 'sales', 'economic-analysis', 'best-sales-days', etc.
+   * @param {Object} params - Parámetros adicionales (startDate, endDate, groupBy, etc.)
    */
   exportToExcel: async (reportType, params = {}) => {
     try {
-      const response = await api.get(`/reports/export/excel/${reportType}`, {
-        params,
+      const response = await api.get(`/reports/download/${reportType}`, {
+        params: { ...params, format: 'excel' },
         responseType: 'blob'
       });
       return response.data;
     } catch (error) {
+      console.error('Error al exportar a Excel:', error);
       throw error.response?.data || error.message;
     }
   }

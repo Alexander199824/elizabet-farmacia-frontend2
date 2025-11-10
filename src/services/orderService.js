@@ -148,19 +148,35 @@ const orderService = {
 
   /**
    * Cancelar un pedido (cliente, vendedor o admin)
+   * Backend: POST /orders/:id/cancel
+   * Requiere: { reason: string } - Razón obligatoria
+   * Permisos: Cliente (solo sus pedidos), Vendedor, Admin
+   * Restricciones: No permite cancelar si está entregado, completado o ya cancelado
+   *
    * @param {number} orderId - ID del pedido
-   * @param {string} reason - Motivo de cancelación
+   * @param {string} reason - Motivo de cancelación (obligatorio)
    * @returns {Promise<Object>} Pedido cancelado
    */
   cancelOrder: async (orderId, reason) => {
     try {
       console.log(`❌ Cancelando pedido ${orderId}. Razón:`, reason);
-      const response = await api.post(`/orders/${orderId}/cancel`, { reason });
+
+      // Validar que la razón no esté vacía
+      if (!reason || !reason.trim()) {
+        throw new Error('La razón de cancelación es obligatoria');
+      }
+
+      const response = await api.post(`/orders/${orderId}/cancel`, { reason: reason.trim() });
       console.log('✅ Pedido cancelado exitosamente');
       return response.data;
     } catch (error) {
       console.error('❌ Error al cancelar pedido:', error);
-      throw error.response?.data || error.message;
+      // Extraer el mensaje de error del backend
+      const errorMessage = error.response?.data?.message ||
+                          error.response?.data?.error ||
+                          error.message ||
+                          'Error al cancelar el pedido';
+      throw new Error(errorMessage);
     }
   },
 

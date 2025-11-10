@@ -11,7 +11,9 @@ import { Toaster } from 'react-hot-toast';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { USER_ROLES } from './utils/constants';
+import NotificationTester from './components/notifications/NotificationTester';
 
 // Layouts
 import Navbar from './components/common/Navbar';
@@ -431,6 +433,9 @@ function AppContent() {
           },
         }}
       />
+
+      {/* Componente de prueba de notificaciones (solo en desarrollo) */}
+      {import.meta.env.DEV && <NotificationTester />}
     </Router>
   );
 }
@@ -441,9 +446,11 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <AuthProvider>
-        <CartProvider>
-          <AppContent />
-        </CartProvider>
+        <NotificationProvider>
+          <CartProvider>
+            <AppContent />
+          </CartProvider>
+        </NotificationProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   );
