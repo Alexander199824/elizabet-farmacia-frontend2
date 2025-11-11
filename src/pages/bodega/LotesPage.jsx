@@ -52,12 +52,26 @@ const LotesPage = () => {
     notes: ''
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   useEffect(() => {
     fetchBatches();
     fetchProducts();
     fetchSuppliers();
   }, [pagination.page, filters]);
+
+  // Cerrar dropdown al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProductDropdown && !event.target.closest('.product-search-container')) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProductDropdown]);
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -174,6 +188,7 @@ const LotesPage = () => {
         try {
           const product = await productService.getProductById(batch.productId);
           setSelectedProduct(product);
+          setProductSearchTerm(product.name);
         } catch (error) {
           console.error('Error al cargar producto:', error);
         }
@@ -195,7 +210,9 @@ const LotesPage = () => {
       setIsEditing(false);
       setSelectedBatch(null);
       setSelectedProduct(null);
+      setProductSearchTerm('');
     }
+    setShowProductDropdown(false);
     setShowFormModal(true);
   };
 
@@ -203,8 +220,8 @@ const LotesPage = () => {
     e.preventDefault();
 
     // Validaciones
-    if (!formData.productId) {
-      toast.error('Selecciona un producto');
+    if (!formData.productId || !productSearchTerm.trim()) {
+      toast.error('Debes seleccionar un producto de la lista');
       return;
     }
 
@@ -228,24 +245,39 @@ const LotesPage = () => {
       const payload = {
         productId: parseInt(formData.productId),
         batchNumber: formData.batchNumber,
-        manufacturingDate: formData.manufacturingDate,
         expirationDate: formData.expirationDate,
         initialQuantity: parseInt(formData.initialQuantity) || 0,
         purchasePrice: parseFloat(formData.purchasePrice) || 0,
-        salePrice: parseFloat(formData.salePrice) || 0,
-        location: formData.location,
-        notes: formData.notes
+        salePrice: parseFloat(formData.salePrice) || 0
       };
+
+      // Solo incluir manufacturingDate si tiene valor
+      if (formData.manufacturingDate && formData.manufacturingDate.trim()) {
+        payload.manufacturingDate = formData.manufacturingDate;
+      }
 
       // Solo incluir supplierId si tiene valor
       if (formData.supplierId) {
         payload.supplierId = parseInt(formData.supplierId);
       }
 
+      // Solo incluir location si tiene valor
+      if (formData.location && formData.location.trim()) {
+        payload.location = formData.location.trim();
+      }
+
       // Solo incluir invoiceNumber si tiene valor
       if (formData.invoiceNumber && formData.invoiceNumber.trim()) {
         payload.invoiceNumber = formData.invoiceNumber.trim();
       }
+
+      // Solo incluir notes si tiene valor
+      if (formData.notes && formData.notes.trim()) {
+        payload.notes = formData.notes.trim();
+      }
+
+      // Log para debugging
+      console.log('Payload a enviar:', payload);
 
       if (isEditing && selectedBatch) {
         await batchService.updateBatch(selectedBatch.id, payload);
@@ -612,26 +644,73 @@ const LotesPage = () => {
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Producto *
                   </label>
-                  <select
-                    required
-                    value={formData.productId}
-                    onChange={(e) => {
-                      const productId = e.target.value;
-                      setFormData({...formData, productId});
-                      handleProductSelect(productId);
-                    }}
-                    disabled={isEditing}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 ${
-                      isEditing ? 'bg-neutral-100 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <option value="">Seleccionar producto</option>
-                    {products.map(product => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} - {product.sku}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative product-search-container">
+                    <input
+                      type="text"
+                      value={productSearchTerm}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setProductSearchTerm(newValue);
+                        if (!isEditing) {
+                          setShowProductDropdown(true);
+                        }
+                        if (!newValue) {
+                          setFormData(prev => ({...prev, productId: ''}));
+                          setSelectedProduct(null);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (!isEditing) {
+                          setShowProductDropdown(true);
+                        }
+                      }}
+                      disabled={isEditing}
+                      readOnly={isEditing}
+                      className={`w-full px-4 py-2 pr-10 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 ${
+                        isEditing ? 'bg-neutral-100 cursor-not-allowed' : ''
+                      }`}
+                      placeholder="Buscar producto por nombre o SKU..."
+                      autoComplete="off"
+                    />
+                    <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400" />
+
+                    {/* Dropdown de resultados */}
+                    {showProductDropdown && !isEditing && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-neutral-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {products
+                          .filter(product =>
+                            product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                            product.sku.toLowerCase().includes(productSearchTerm.toLowerCase())
+                          )
+                          .map(product => (
+                            <div
+                              key={product.id}
+                              onClick={() => {
+                                setProductSearchTerm(product.name);
+                                setFormData({...formData, productId: product.id});
+                                handleProductSelect(product.id);
+                                setShowProductDropdown(false);
+                              }}
+                              className={`px-4 py-3 cursor-pointer hover:bg-primary-50 transition-colors border-b last:border-b-0 ${
+                                formData.productId === product.id ? 'bg-primary-50' : ''
+                              }`}
+                            >
+                              <p className="font-medium text-neutral-900">{product.name}</p>
+                              <p className="text-xs text-neutral-500">SKU: {product.sku}</p>
+                            </div>
+                          ))
+                        }
+                        {products.filter(product =>
+                          product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                          product.sku.toLowerCase().includes(productSearchTerm.toLowerCase())
+                        ).length === 0 && (
+                          <div className="px-4 py-3 text-center text-neutral-500">
+                            No se encontraron productos
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {isEditing && (
                     <p className="text-xs text-neutral-500 mt-1">
                       No se puede cambiar el producto al editar un lote

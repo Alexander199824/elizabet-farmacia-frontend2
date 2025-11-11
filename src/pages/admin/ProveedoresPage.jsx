@@ -53,13 +53,17 @@ const ProveedoresPage = () => {
   const [showCodeInfo, setShowCodeInfo] = useState(false);
 
   // Función para generar código de proveedor automáticamente
-  const generateSupplierCode = (data) => {
-    if (!data.name) return '';
+  const generateSupplierCode = (name) => {
+    // Validar que name sea un string válido
+    if (!name || typeof name !== 'string') return '';
+
+    const trimmedName = name.trim();
+    if (!trimmedName) return '';
 
     let code = 'PROV';
 
     // Obtener iniciales del nombre (máximo 4 letras)
-    const nameWords = data.name
+    const nameWords = trimmedName
       .toUpperCase()
       .replace(/[^A-Z0-9\s]/g, '') // Eliminar caracteres especiales
       .split(' ')
@@ -84,10 +88,19 @@ const ProveedoresPage = () => {
 
   // Generar código automáticamente cuando cambia el nombre
   useEffect(() => {
-    if (autoGenerateCode && !isEditing && formData.name) {
-      const generatedCode = generateSupplierCode(formData);
-      if (generatedCode && generatedCode !== formData.code) {
-        setFormData(prev => ({ ...prev, code: generatedCode }));
+    if (autoGenerateCode && !isEditing) {
+      if (formData.name && formData.name.trim()) {
+        const generatedCode = generateSupplierCode(formData.name);
+        console.log('🔄 Generando código:', generatedCode, 'para el nombre:', formData.name);
+        if (generatedCode) {
+          setFormData(prev => ({ ...prev, code: generatedCode }));
+        }
+      } else {
+        // Limpiar código si no hay nombre
+        if (formData.code) {
+          console.log('🧹 Limpiando código porque no hay nombre');
+          setFormData(prev => ({ ...prev, code: '' }));
+        }
       }
     }
   }, [formData.name, autoGenerateCode, isEditing]);
@@ -200,10 +213,12 @@ const ProveedoresPage = () => {
   };
 
   const handleToggleCodeMode = () => {
-    setAutoGenerateCode(!autoGenerateCode);
-    if (!autoGenerateCode && formData.name) {
+    const newAutoGenerateState = !autoGenerateCode;
+    setAutoGenerateCode(newAutoGenerateState);
+    if (newAutoGenerateState && formData.name) {
       // Si se activa el modo automático, generar código inmediatamente
-      const generatedCode = generateSupplierCode(formData);
+      const generatedCode = generateSupplierCode(formData.name);
+      console.log('🔀 Toggle mode - Generando código:', generatedCode);
       if (generatedCode) {
         setFormData(prev => ({ ...prev, code: generatedCode }));
       }
@@ -223,27 +238,52 @@ const ProveedoresPage = () => {
         toast.error('El nombre del proveedor es obligatorio');
         return;
       }
-      if (!formData.email?.trim()) {
-        toast.error('El email es obligatorio');
-        return;
-      }
       if (!formData.phone?.trim()) {
         toast.error('El teléfono es obligatorio');
         return;
       }
 
-      // Preparar datos - convertir strings vacíos a números
+      // Preparar datos - solo incluir campos con valores
       const preparedData = {
-        ...formData,
-        creditLimit: formData.creditLimit === '' || formData.creditLimit === null ? 0 : parseFloat(formData.creditLimit) || 0,
+        code: formData.code?.trim() || '',
+        name: formData.name?.trim() || '',
+        phone: formData.phone?.trim() || '',
+        email: formData.email?.trim() || '', // Backend requiere email, enviamos string vacío si no hay valor
+        acceptsReturns: formData.acceptsReturns,
+        returnPolicyMonthsBefore: formData.returnPolicyMonthsBefore === '' || formData.returnPolicyMonthsBefore === null ? 3 : parseInt(formData.returnPolicyMonthsBefore) || 3,
         returnPolicyMonthsAfter: formData.returnPolicyMonthsAfter === '' || formData.returnPolicyMonthsAfter === null ? 0 : parseInt(formData.returnPolicyMonthsAfter) || 0,
-        returnPolicyMonthsBefore: formData.returnPolicyMonthsBefore === '' || formData.returnPolicyMonthsBefore === null ? 3 : parseInt(formData.returnPolicyMonthsBefore) || 3
+        creditLimit: formData.creditLimit === '' || formData.creditLimit === null ? 0 : parseFloat(formData.creditLimit) || 0
       };
+
+      // Agregar campos opcionales solo si tienen valor
+      if (formData.contactName?.trim()) {
+        preparedData.contactName = formData.contactName.trim();
+      }
+      if (formData.alternativePhone?.trim()) {
+        preparedData.alternativePhone = formData.alternativePhone.trim();
+      }
+      if (formData.address?.trim()) {
+        preparedData.address = formData.address.trim();
+      }
+      if (formData.nit?.trim()) {
+        preparedData.nit = formData.nit.trim();
+      }
+      if (formData.returnConditions?.trim()) {
+        preparedData.returnConditions = formData.returnConditions.trim();
+      }
+      if (formData.paymentTerms?.trim()) {
+        preparedData.paymentTerms = formData.paymentTerms.trim();
+      }
+      if (formData.notes?.trim()) {
+        preparedData.notes = formData.notes.trim();
+      }
 
       // Remover code si está editando
       const dataToSend = isEditing
         ? { ...preparedData, code: undefined }
         : preparedData;
+
+      console.log('Datos a enviar:', dataToSend);
 
       if (isEditing && selectedSupplier) {
         await supplierService.updateSupplier(selectedSupplier.id, dataToSend);
@@ -256,8 +296,28 @@ const ProveedoresPage = () => {
       setShowFormModal(false);
       fetchSuppliers();
     } catch (error) {
-      console.error('Error al guardar proveedor:', error);
-      const errorMessage = error?.message || error?.error || 'Error al guardar proveedor';
+      console.error('❌ Error completo:', error);
+      console.error('❌ Tipo de error:', typeof error);
+
+      // Extraer mensaje de error más detallado
+      let errorMessage = 'Error al guardar proveedor';
+
+      // El servicio lanza error.response.data directamente, no el error completo
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (typeof error === 'object') {
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.error) {
+          errorMessage = error.error;
+        } else if (error.details) {
+          errorMessage = error.details;
+        } else if (error.msg) {
+          errorMessage = error.msg;
+        }
+      }
+
+      console.error('📢 Mensaje de error:', errorMessage);
       toast.error(errorMessage);
     }
   };
@@ -529,6 +589,36 @@ const ProveedoresPage = () => {
             </div>
             
             <form onSubmit={handleSubmitForm} className="p-6 space-y-4">
+              {/* Panel informativo fuera del grid */}
+              {showCodeInfo && !isEditing && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs mb-4">
+                  <h5 className="font-semibold text-blue-900 mb-2">
+                    ¿Cómo se genera el código automáticamente?
+                  </h5>
+                  <div className="space-y-2 text-blue-800">
+                    <div>
+                      <span className="font-medium">1. Prefijo fijo:</span>
+                      <p className="ml-4">• PROV (Proveedor)</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">2. Iniciales del nombre:</span>
+                      <p className="ml-4">• Si hay múltiples palabras: primera letra de cada una (máx 4)</p>
+                      <p className="ml-4">• Si es una palabra: primeras 4 letras</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">3. Código único:</span>
+                      <p className="ml-4">• Timestamp de 4 dígitos</p>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-blue-300">
+                      <span className="font-medium">Ejemplos:</span>
+                      <p className="ml-4">• "Farmacéutica ABC" → PROV-FABC-1234</p>
+                      <p className="ml-4">• "Distribuidora Guatemala" → PROV-DG-5678</p>
+                      <p className="ml-4">• "Laboratorios" → PROV-LABO-9012</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -579,36 +669,6 @@ const ProveedoresPage = () => {
                   )}
                 </div>
 
-                {/* Panel informativo - ocupa toda la fila */}
-                {showCodeInfo && !isEditing && (
-                  <div className="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-                    <h5 className="font-semibold text-blue-900 mb-2">
-                      ¿Cómo se genera el código automáticamente?
-                    </h5>
-                    <div className="space-y-2 text-blue-800">
-                      <div>
-                        <span className="font-medium">1. Prefijo fijo:</span>
-                        <p className="ml-4">• PROV (Proveedor)</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">2. Iniciales del nombre:</span>
-                        <p className="ml-4">• Si hay múltiples palabras: primera letra de cada una (máx 4)</p>
-                        <p className="ml-4">• Si es una palabra: primeras 4 letras</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">3. Código único:</span>
-                        <p className="ml-4">• Timestamp de 4 dígitos</p>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-blue-300">
-                        <span className="font-medium">Ejemplos:</span>
-                        <p className="ml-4">• "Farmacéutica ABC" → PROV-FABC-1234</p>
-                        <p className="ml-4">• "Distribuidora Guatemala" → PROV-DG-5678</p>
-                        <p className="ml-4">• "Laboratorios" → PROV-LABO-9012</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Nombre del Proveedor *
@@ -651,11 +711,10 @@ const ProveedoresPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Email *
+                    Email <span className="text-neutral-400 text-xs">(Opcional)</span>
                   </label>
                   <input
                     type="email"
-                    required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500"

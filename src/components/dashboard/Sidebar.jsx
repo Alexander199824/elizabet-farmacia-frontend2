@@ -31,7 +31,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const menuByRole = {
     [USER_ROLES.ADMIN]: [
       { path: '/dashboard', icon: FiHome, label: 'Dashboard' },
-      { path: '/dashboard/productos', icon: FiPackage, label: 'Productos' },
       { path: '/dashboard/ventas', icon: FiShoppingCart, label: 'Ventas' },
       { path: '/dashboard/pedidos-online', icon: FiShoppingBag, label: 'Pedidos Online' },
       { path: '/dashboard/entregas', icon: FiTruck, label: 'Entregas' },
